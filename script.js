@@ -1,7 +1,7 @@
 
 /**
  * Zensho Bookkeeping Grade 3 Practice App
- * Logic Controller - V6 (Enhanced Step-by-Step Explanation)
+ * Logic Controller - V7 (Expanded Content & UI Improvements)
  */
 
 // --- Genre Configuration ---
@@ -55,9 +55,6 @@ const GENRE_STRUCTURE = [
 ];
 
 // --- Data: Questions (Categorized) ---
-// Enhanced 'explanationSteps' for detailed step-by-step animation.
-// 'entries' allows updating previous rows by matching account name.
-// amount: '???' denotes a placeholder before calculation is revealed.
 const QUESTIONS = [
   // --- Cash & Savings ---
   // Sub: Cash
@@ -115,6 +112,35 @@ const QUESTIONS = [
         highlight: "切手 1,000円",
         entries: [{ side: 'debit', account: '通信費', amount: 1000 }],
         comment: "切手代は「通信費」（費用）として処理します。費用の発生は借方（左）です。"
+      }
+    ]
+  },
+  {
+    id: '104_new', major: 'cash_savings', sub: 'cash',
+    text: "現金 5,000,000円 を元入れして開業し、直ちに当座預金に 1,000,000円 を預け入れた。",
+    correctEntries: { debit: [{ accountName: "現金", amount: 4000000 }, { accountName: "当座預金", amount: 1000000 }], credit: [{ accountName: "資本金", amount: 5000000 }] },
+    choices: ["現金", "当座預金", "資本金", "借入金", "普通預金"],
+    explanation: "元入れ総額は資本金ですが、現金の一部はすぐに当座預金になっています。",
+    explanationSteps: [
+      {
+        highlight: "現金 5,000,000円 を元入れ",
+        entries: [{ side: 'credit', account: '資本金', amount: 5000000 }],
+        comment: "元入総額は500万円です。これを資本金とします。"
+      },
+      {
+        highlight: "当座預金に 1,000,000円 を預け入れた",
+        entries: [{ side: 'debit', account: '当座預金', amount: 1000000 }],
+        comment: "そのうち100万円は当座預金に入金されました。"
+      },
+      {
+        highlight: "現金 ... 元入れして",
+        entries: [{ side: 'debit', account: '現金', amount: '???' }],
+        comment: "残りが手元の現金になります。500万 - 100万 = 400万円です。"
+      },
+      {
+        highlight: "現金 ... 元入れして",
+        entries: [{ side: 'debit', account: '現金', amount: 4000000 }],
+        comment: "借方の合計も500万円となり、貸借が一致します。"
       }
     ]
   },
@@ -233,6 +259,30 @@ const QUESTIONS = [
     choices: ["現金過不足", "受取利息", "現金", "雑益", "雑損"],
     explanation: "貸方残高（現金過剰）の原因が判明したので、現金過不足を取り消して正しい科目に振り替えます。"
   },
+  {
+    id: '133_new', major: 'cash_savings', sub: 'over_short',
+    text: "現金の実際有高を調べたところ 85,000円 で、帳簿残高 80,000円 より多かった。",
+    correctEntries: { debit: [{ accountName: "現金", amount: 5000 }], credit: [{ accountName: "現金過不足", amount: 5000 }] },
+    choices: ["現金", "現金過不足", "雑益", "受取利息", "売掛金"],
+    explanation: "実際が多い場合は、帳簿の現金を増やして合わせます。",
+    explanationSteps: [
+      {
+        highlight: "実際有高 ... 帳簿残高 ... より多かった",
+        entries: [{ side: 'debit', account: '現金', amount: '???' }],
+        comment: "実際(85,000) > 帳簿(80,000) なので、帳簿の現金を増やす必要があります。"
+      },
+      {
+        highlight: "85,000円 で、帳簿残高 80,000円",
+        entries: [{ side: 'debit', account: '現金', amount: 5000 }],
+        comment: "差額の5,000円分、現金を借方で増やします。"
+      },
+      {
+        highlight: "多かった",
+        entries: [{ side: 'credit', account: '現金過不足', amount: 5000 }],
+        comment: "原因不明の増加分として「現金過不足」を貸方に記録します。"
+      }
+    ]
+  },
 
   // --- Merchandise ---
   // Sub: Purchase/Sales
@@ -340,6 +390,30 @@ const QUESTIONS = [
     choices: ["クレジット売掛金", "売上", "売掛金", "現金", "支払手数料"],
     explanation: "クレジット払いは通常の売掛金と区別して「クレジット売掛金」とします。"
   },
+  {
+    id: '213_new', major: 'merchandise', sub: 'credit_gift',
+    text: "商品 100,000円 を売り上げ、代金のうち 20,000円 はデパート商品券で受け取り、残額は掛けとした。",
+    correctEntries: { debit: [{ accountName: "受取商品券", amount: 20000 }, { accountName: "売掛金", amount: 80000 }], credit: [{ accountName: "売上", amount: 100000 }] },
+    choices: ["売上", "受取商品券", "売掛金", "他店商品券", "現金"],
+    explanation: "商品券と掛売りの複合仕訳です。",
+    explanationSteps: [
+       {
+         highlight: "商品 100,000円 を売り上げ",
+         entries: [{ side: 'credit', account: '売上', amount: 100000 }],
+         comment: "売上総額を貸方に計上します。"
+       },
+       {
+         highlight: "20,000円 はデパート商品券",
+         entries: [{ side: 'debit', account: '受取商品券', amount: 20000 }],
+         comment: "受け取った商品券は資産（受取商品券）として借方へ。"
+       },
+       {
+         highlight: "残額は掛けとした",
+         entries: [{ side: 'debit', account: '売掛金', amount: 80000 }],
+         comment: "100,000 - 20,000 = 80,000円 を売掛金とします。"
+       }
+    ]
+  },
   // Sub: Advance
   {
     id: '221', major: 'merchandise', sub: 'advance',
@@ -423,6 +497,25 @@ const QUESTIONS = [
     choices: ["受取手形", "売上", "支払手形", "売掛金", "現金"],
     explanation: "手形の受取は「受取手形」（資産）の増加です。"
   },
+  {
+    id: '303_new', major: 'notes', sub: 'promissory',
+    text: "買掛金 120,000円 の支払いのため、約束手形を振り出した。",
+    correctEntries: { debit: [{ accountName: "買掛金", amount: 120000 }], credit: [{ accountName: "支払手形", amount: 120000 }] },
+    choices: ["買掛金", "支払手形", "当座預金", "受取手形", "未払金"],
+    explanation: "買掛金という債務を消滅させ、手形債務に変更する仕訳です。",
+    explanationSteps: [
+      {
+        highlight: "買掛金 120,000円 の支払い",
+        entries: [{ side: 'debit', account: '買掛金', amount: 120000 }],
+        comment: "買掛金を支払うため、借方で負債を減少させます。"
+      },
+      {
+        highlight: "約束手形を振り出した",
+        entries: [{ side: 'credit', account: '支払手形', amount: 120000 }],
+        comment: "代わりに手形代金を支払う義務（支払手形）が発生します。"
+      }
+    ]
+  },
   // Sub: Loan
   {
     id: '311', major: 'notes', sub: 'loan',
@@ -476,6 +569,35 @@ const QUESTIONS = [
     correctEntries: { debit: [{ accountName: "土地", amount: 5000000 }], credit: [{ accountName: "当座預金", amount: 5000000 }] },
     choices: ["土地", "当座預金", "建物", "現金", "未払金"],
     explanation: "土地は固定資産です。小切手振出は当座預金の減少です。"
+  },
+  {
+    id: '403_new', major: 'assets_expenses', sub: 'fixed_assets',
+    text: "営業用のトラックを 1,200,000円 で購入し、代金のうち 200,000円 は現金で支払い、残額は月末払いとした。",
+    correctEntries: { debit: [{ accountName: "車両運搬具", amount: 1200000 }], credit: [{ accountName: "現金", amount: 200000 }, { accountName: "未払金", amount: 1000000 }] },
+    choices: ["車両運搬具", "現金", "未払金", "買掛金", "備品"],
+    explanation: "車は「車両運搬具」勘定を使用します。商品ではないので残額は「未払金」です。",
+    explanationSteps: [
+      {
+        highlight: "営業用のトラックを 1,200,000円 で購入",
+        entries: [{ side: 'debit', account: '車両運搬具', amount: 1200000 }],
+        comment: "固定資産（車両運搬具）を取得したので、借方に全額を計上します。"
+      },
+      {
+        highlight: "200,000円 は現金で支払い",
+        entries: [{ side: 'credit', account: '現金', amount: 200000 }],
+        comment: "頭金として払った現金を貸方で減らします。"
+      },
+      {
+        highlight: "残額は月末払いとした",
+        entries: [{ side: 'credit', account: '未払金', amount: '???' }],
+        comment: "残りの100万円は後払いです。商品売買ではないので「買掛金」ではなく「未払金」を使います。"
+      },
+      {
+        highlight: "残額",
+        entries: [{ side: 'credit', account: '未払金', amount: 1000000 }],
+        comment: "1,200,000 - 200,000 = 1,000,000円 です。"
+      }
+    ]
   },
   // Sub: Expenses/Taxes
   {
@@ -553,6 +675,30 @@ const QUESTIONS = [
       }
     ]
   },
+  {
+    id: '502_new', major: 'closing', sub: 'bad_debts',
+    text: "決算：受取手形残高 200,000円 と売掛金残高 300,000円 の合計に対し 3% の貸倒れを見積もる。なお、貸倒引当金の残高はない。",
+    correctEntries: { debit: [{ accountName: "貸倒引当金繰入", amount: 15000 }], credit: [{ accountName: "貸倒引当金", amount: 15000 }] },
+    choices: ["貸倒引当金繰入", "貸倒引当金", "売掛金", "受取手形", "現金"],
+    explanation: "売上債権の合計に対して計算します。残高がないため全額を繰り入れます。",
+    explanationSteps: [
+      {
+        highlight: "受取手形残高 200,000円 と売掛金残高 300,000円 の合計",
+        entries: [],
+        comment: "対象となる債権の合計は、200,000 + 300,000 = 500,000円です。"
+      },
+      {
+        highlight: "3% の貸倒れを見積もる",
+        entries: [{ side: 'debit', account: '貸倒引当金繰入', amount: '???' }],
+        comment: "500,000 × 0.03 = 15,000円 が見積額となります。"
+      },
+      {
+        highlight: "貸倒引当金の残高はない",
+        entries: [{ side: 'debit', account: '貸倒引当金繰入', amount: 15000 }, { side: 'credit', account: '貸倒引当金', amount: 15000 }],
+        comment: "以前の残高がないため、見積額の15,000円全額を新たに設定します。"
+      }
+    ]
+  },
   // Sub: Depreciation
   {
     id: '511', major: 'closing', sub: 'depreciation',
@@ -575,6 +721,30 @@ const QUESTIONS = [
         highlight: "直接法",
         entries: [{ side: 'credit', account: '建物', amount: 100000 }],
         comment: "直接法では、建物の勘定（資産）を貸方で直接減らします。"
+      }
+    ]
+  },
+  {
+    id: '512_new', major: 'closing', sub: 'depreciation',
+    text: "備品（取得原価 600,000円）の減価償却を行う。耐用年数5年、残存価額ゼロ、定額法、直接法。",
+    correctEntries: { debit: [{ accountName: "減価償却費", amount: 120000 }], credit: [{ accountName: "備品", amount: 120000 }] },
+    choices: ["減価償却費", "備品", "減価償却累計額", "建物", "損益"],
+    explanation: "600,000 ÷ 5 = 120,000。備品の価値を直接減らします。",
+    explanationSteps: [
+      {
+        highlight: "備品（取得原価 600,000円）の減価償却",
+        entries: [{ side: 'debit', account: '減価償却費', amount: '???' }],
+        comment: "備品の価値が1年分減少しました。"
+      },
+      {
+        highlight: "耐用年数5年 ... 定額法",
+        entries: [{ side: 'debit', account: '減価償却費', amount: 120000 }],
+        comment: "計算: 600,000円 ÷ 5年 = 120,000円"
+      },
+      {
+        highlight: "直接法",
+        entries: [{ side: 'credit', account: '備品', amount: 120000 }],
+        comment: "貸方で「備品」を直接減額します。"
       }
     ]
   },
@@ -609,6 +779,25 @@ const QUESTIONS = [
     correctEntries: { debit: [{ accountName: "支払家賃", amount: 50000 }], credit: [{ accountName: "未払家賃", amount: 50000 }] },
     choices: ["支払家賃", "未払家賃", "前払家賃", "現金", "未払金"],
     explanation: "当期の費用だが未払いのものは、費用を計上し、「未払〇〇」（負債）とします。"
+  },
+  {
+    id: '523_new', major: 'closing', sub: 'accruals',
+    text: "今月分の水道光熱費 15,000円 が未払いであり、これを計上する。",
+    correctEntries: { debit: [{ accountName: "水道光熱費", amount: 15000 }], credit: [{ accountName: "未払金", amount: 15000 }] },
+    choices: ["水道光熱費", "未払金", "未払費用", "現金", "当座預金"],
+    explanation: "継続的なサービス契約に基づく未払費用ですが、3級では「未払金」または「未払費用」として処理されることがあります。ここでは一般的な未払金として扱います。",
+    explanationSteps: [
+      {
+        highlight: "水道光熱費 15,000円",
+        entries: [{ side: 'debit', account: '水道光熱費', amount: 15000 }],
+        comment: "当月に発生した費用なので借方に計上します。"
+      },
+      {
+        highlight: "未払いであり",
+        entries: [{ side: 'credit', account: '未払金', amount: 15000 }],
+        comment: "まだ支払っていないため、負債（未払金）として貸方に計上します。"
+      }
+    ]
   }
 ];
 
@@ -661,7 +850,7 @@ let userStats = {
 // --- Core Logic ---
 
 function initApp() {
-  console.log("App Initializing V6...");
+  console.log("App Initializing V7...");
   loadStats();
   renderHomeStats();
   renderHomeMenu();
@@ -1091,9 +1280,17 @@ function checkAnswer() {
   const userDebit = state.debitLines.filter(l => l.accountName && l.amount > 0);
   const userCredit = state.creditLines.filter(l => l.accountName && l.amount > 0);
 
-  if (userDebit.length === 0 && userCredit.length === 0) {
-    alert("仕訳を入力してください。");
-    return;
+  // Partial check logic:
+  // We want to detect if the user has left lines blank or incomplete (e.g., account chosen but 0 amount).
+  const allLines = [...state.debitLines, ...state.creditLines];
+  const hasIncompleteLines = allLines.some(l => (l.accountName && !l.amount) || (!l.accountName && l.amount));
+  const isEmpty = userDebit.length === 0 && userCredit.length === 0;
+
+  if (isEmpty || hasIncompleteLines) {
+    if (!confirm("未入力または不完全な項目があります。\nこのまま解答し（不正解扱いとなります）、正解を確認しますか？")) {
+      return; // Stop processing
+    }
+    // Proceed to grading (which will result in Incorrect)
   }
 
   const sorter = (a, b) => (a.n || '').localeCompare(b.n || '');
@@ -1426,7 +1623,7 @@ function updateExplControls() {
 
 
 // --- Persistence ---
-const STORAGE_KEY = 'zensho_bookkeeping_v6';
+const STORAGE_KEY = 'zensho_bookkeeping_v7';
 
 function loadStats() {
   const s = localStorage.getItem(STORAGE_KEY);
