@@ -1,0 +1,1 @@
+// Deprecated. Data is now located in script.js.

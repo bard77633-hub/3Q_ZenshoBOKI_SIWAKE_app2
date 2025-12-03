@@ -1,0 +1,1 @@
+// Deprecated. Types are now handled in script.js (JSDoc).
