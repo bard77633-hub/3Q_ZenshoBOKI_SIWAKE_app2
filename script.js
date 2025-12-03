@@ -1,4 +1,5 @@
 
+
 /**
  * Zensho Bookkeeping Grade 3 Practice App
  * Logic Controller - V7 (Expanded Content & UI Improvements)
@@ -1317,19 +1318,40 @@ function checkAnswer() {
 
 function showResult(isCorrect, q) {
   const modal = document.getElementById('result-modal');
+  const card = document.getElementById('result-card');
   const header = document.getElementById('result-header');
+  const contentArea = document.getElementById('result-content-area');
   const display = document.getElementById('correct-answer-display');
   const expl = document.getElementById('explanation-text');
   const nextBtn = document.getElementById('next-btn');
 
+  // Reset core styling classes
+  card.className = "bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up flex flex-col max-h-[85vh] border-4";
+
   if (isCorrect) {
+    // CORRECT STYLE
     header.textContent = "正解！ 🙆‍♂️";
-    header.className = "p-5 text-center text-white font-bold text-2xl bg-green-500 shrink-0";
+    header.className = "p-6 text-center text-white font-bold text-3xl bg-green-500 shrink-0";
+    card.classList.add('border-green-500');
+    contentArea.className = "p-5 space-y-5 overflow-y-auto custom-scrollbar flex-grow bg-green-50";
+    display.className = "bg-white p-3 rounded border border-green-200 text-sm font-mono shadow-sm";
+    
+    // Button Green
+    nextBtn.className = "w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl transition-colors shadow-sm active:scale-[0.98]";
+
   } else {
+    // INCORRECT STYLE
     header.textContent = "不正解... 🙅‍♀️";
-    header.className = "p-5 text-center text-white font-bold text-2xl bg-red-500 shrink-0";
+    header.className = "p-6 text-center text-white font-bold text-3xl bg-red-500 shrink-0";
+    card.classList.add('border-red-500');
+    contentArea.className = "p-5 space-y-5 overflow-y-auto custom-scrollbar flex-grow bg-red-50";
+    display.className = "bg-white p-3 rounded border border-red-200 text-sm font-mono shadow-sm text-red-900";
+    
+    // Button Slate (Neutral for incorrect to encourage retry/move on)
+    nextBtn.className = "w-full bg-slate-700 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition-colors shadow-sm active:scale-[0.98]";
   }
 
+  // Construct HTML for Answer Table
   let html = `<div class="grid grid-cols-2 border border-slate-300 rounded overflow-hidden text-slate-800 text-xs md:text-sm">
     <div class="bg-slate-100 p-2 text-center font-bold border-r border-b border-slate-300">借方</div>
     <div class="bg-slate-100 p-2 text-center font-bold border-b border-slate-300">貸方</div>
