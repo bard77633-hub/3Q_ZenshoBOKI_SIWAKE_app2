@@ -1,7 +1,7 @@
 
 /**
  * Zensho Bookkeeping Grade 3 Practice App
- * Logic Controller - V5 (With Explanation Mode)
+ * Logic Controller - V6 (Enhanced Step-by-Step Explanation)
  */
 
 // --- Genre Configuration ---
@@ -55,8 +55,9 @@ const GENRE_STRUCTURE = [
 ];
 
 // --- Data: Questions (Categorized) ---
-// Expanded to ensure ~3-5 questions per sub-category for variety
-// Added 'explanationSteps' for interactive mode to select items
+// Enhanced 'explanationSteps' for detailed step-by-step animation.
+// 'entries' allows updating previous rows by matching account name.
+// amount: '???' denotes a placeholder before calculation is revealed.
 const QUESTIONS = [
   // --- Cash & Savings ---
   // Sub: Cash
@@ -70,12 +71,12 @@ const QUESTIONS = [
       {
         highlight: "現金 2,500,000円",
         entries: [{ side: 'debit', account: '現金', amount: 2500000 }],
-        comment: "お店の「現金」（資産）が増加しました。資産の増加は借方（左）です。"
+        comment: "お店に「現金」という資産が増えました。資産の増加は借方（左）です。"
       },
       {
         highlight: "元入れして営業を開始",
         entries: [{ side: 'credit', account: '資本金', amount: 2500000 }],
-        comment: "事業の元手は「資本金」（純資産）の増加として、貸方（右）に記入します。"
+        comment: "この現金は元手として出資されたものです。「資本金」（純資産）の増加として貸方（右）に記入します。"
       }
     ]
   },
@@ -89,12 +90,12 @@ const QUESTIONS = [
       {
         highlight: "現金 30,000円 を引き出した",
         entries: [{ side: 'credit', account: '現金', amount: 30000 }],
-        comment: "お店から「現金」（資産）が出ていきました。資産の減少は貸方（右）です。"
+        comment: "お店の「現金」（資産）が減りました。資産の減少は貸方（右）です。"
       },
       {
         highlight: "店主が私用で",
         entries: [{ side: 'debit', account: '引出金', amount: 30000 }],
-        comment: "店主の個人的な使用は「引出金」（資本の控除項目）として借方（左）に記入します。"
+        comment: "店主個人のための支出は「引出金」（資本の控除）として処理します。"
       }
     ]
   },
@@ -103,7 +104,19 @@ const QUESTIONS = [
     text: "郵便局で切手 1,000円 を現金で購入した。",
     correctEntries: { debit: [{ accountName: "通信費", amount: 1000 }], credit: [{ accountName: "現金", amount: 1000 }] },
     choices: ["通信費", "現金", "消耗品費", "租税公課", "雑費"],
-    explanation: "切手は「通信費」で処理します。"
+    explanation: "切手は「通信費」で処理します。",
+    explanationSteps: [
+      {
+        highlight: "現金で購入した",
+        entries: [{ side: 'credit', account: '現金', amount: 1000 }],
+        comment: "現金を支払ったので、資産の減少として貸方（右）へ。"
+      },
+      {
+        highlight: "切手 1,000円",
+        entries: [{ side: 'debit', account: '通信費', amount: 1000 }],
+        comment: "切手代は「通信費」（費用）として処理します。費用の発生は借方（左）です。"
+      }
+    ]
   },
   // Sub: Checking
   {
@@ -116,12 +129,12 @@ const QUESTIONS = [
       {
         highlight: "現金 1,000,000円 を預け入れた",
         entries: [{ side: 'credit', account: '現金', amount: 1000000 }],
-        comment: "手元の「現金」（資産）が減少したので、貸方（右）に記入します。"
+        comment: "手元の現金を預けたので、現金（資産）が減ります。"
       },
       {
         highlight: "当座取引契約を結び",
         entries: [{ side: 'debit', account: '当座預金', amount: 1000000 }],
-        comment: "代わりに「当座預金」（資産）が増加したので、借方（左）に記入します。"
+        comment: "代わりに当座預金口座の残高（資産）が増えます。"
       }
     ]
   },
@@ -135,12 +148,12 @@ const QUESTIONS = [
       {
         highlight: "買掛金 150,000円 を支払う",
         entries: [{ side: 'debit', account: '買掛金', amount: 150000 }],
-        comment: "負債である「買掛金」が支払によって減少するため、借方（左）に記入します。"
+        comment: "買掛金（負債）を支払うので、負債の減少として借方（左）へ。"
       },
       {
         highlight: "小切手を振り出した",
         entries: [{ side: 'credit', account: '当座預金', amount: 150000 }],
-        comment: "小切手の振出は「当座預金」（資産）の減少となるため、貸方（右）に記入します。"
+        comment: "小切手を振り出すと、当座預金口座から引き落とされます。当座預金（資産）の減少です。"
       }
     ]
   },
@@ -164,7 +177,29 @@ const QUESTIONS = [
     text: "小口現金係から、通信費 5,000円 と 消耗品費 3,000円 の支払報告を受けた。",
     correctEntries: { debit: [{ accountName: "通信費", amount: 5000 }, { accountName: "消耗品費", amount: 3000 }], credit: [{ accountName: "小口現金", amount: 8000 }] },
     choices: ["通信費", "消耗品費", "小口現金", "雑費", "未払金"],
-    explanation: "報告を受けた時点で、費用の計上と小口現金の減少を記録します。"
+    explanation: "報告を受けた時点で、費用の計上と小口現金の減少を記録します。",
+    explanationSteps: [
+      {
+        highlight: "通信費 5,000円",
+        entries: [{ side: 'debit', account: '通信費', amount: 5000 }],
+        comment: "使った経費（通信費）を借方に計上します。"
+      },
+      {
+        highlight: "消耗品費 3,000円",
+        entries: [{ side: 'debit', account: '消耗品費', amount: 3000 }],
+        comment: "同様に、消耗品費も借方に計上します。"
+      },
+      {
+        highlight: "支払報告を受けた",
+        entries: [{ side: 'credit', account: '小口現金', amount: '???' }],
+        comment: "手元の小口現金が減ったことになります。合計いくら減ったでしょうか？"
+      },
+      {
+        highlight: "支払報告を受けた",
+        entries: [{ side: 'credit', account: '小口現金', amount: 8000 }],
+        comment: "5,000円 + 3,000円 = 8,000円 が小口現金の減少額です。"
+      }
+    ]
   },
   // Sub: Over/Short
   {
@@ -172,7 +207,24 @@ const QUESTIONS = [
     text: "現金の実際有高を調べたところ 58,000円 であり、帳簿残高 60,000円 と一致しなかった。",
     correctEntries: { debit: [{ accountName: "現金過不足", amount: 2000 }], credit: [{ accountName: "現金", amount: 2000 }] },
     choices: ["現金過不足", "現金", "雑損", "雑益", "引出金"],
-    explanation: "実際有高が少ないため、帳簿の現金を減らして一致させます。相手科目は「現金過不足」です。"
+    explanation: "実際有高が少ないため、帳簿の現金を減らして一致させます。相手科目は「現金過不足」です。",
+    explanationSteps: [
+      {
+        highlight: "実際有高 ... 帳簿残高 ... と一致しなかった",
+        entries: [{ side: 'credit', account: '現金', amount: '???' }],
+        comment: "帳簿の方を現実に合わせます。実際(58,000) < 帳簿(60,000) なので、帳簿の現金を減らす必要があります。"
+      },
+      {
+        highlight: "実際有高を調べたところ 58,000円",
+        entries: [{ side: 'credit', account: '現金', amount: 2000 }],
+        comment: "差額の2,000円分、現金を貸方で減らします。"
+      },
+      {
+        highlight: "一致しなかった",
+        entries: [{ side: 'debit', account: '現金過不足', amount: 2000 }],
+        comment: "原因がわかるまでは、仮の科目「現金過不足」で処理します。"
+      }
+    ]
   },
   {
     id: '132', major: 'cash_savings', sub: 'over_short',
@@ -239,17 +291,22 @@ const QUESTIONS = [
       {
         highlight: "商品 500,000円 を仕入れ",
         entries: [{ side: 'debit', account: '仕入', amount: 500000 }],
-        comment: "総額分の「仕入」（費用）を借方に計上します。"
+        comment: "まず、総額分の「仕入」を借方に計上します。"
       },
       {
         highlight: "200,000円 は現金で支払い",
         entries: [{ side: 'credit', account: '現金', amount: 200000 }],
-        comment: "支払った分の「現金」（資産）を貸方で減らします。"
+        comment: "支払った分の「現金」を貸方で減らします。"
+      },
+      {
+        highlight: "残額は掛けとした",
+        entries: [{ side: 'credit', account: '買掛金', amount: '???' }],
+        comment: "残りの金額を計算し、「買掛金」とします。"
       },
       {
         highlight: "残額は掛けとした",
         entries: [{ side: 'credit', account: '買掛金', amount: 300000 }],
-        comment: "残りの30万円は「買掛金」（負債）として貸方に記入します。"
+        comment: "500,000円 - 200,000円 = 300,000円 です。"
       }
     ]
   },
@@ -274,7 +331,7 @@ const QUESTIONS = [
     text: "商品 60,000円 を売り上げ、代金は信販会社発行の商品券で受け取った。",
     correctEntries: { debit: [{ accountName: "受取商品券", amount: 60000 }], credit: [{ accountName: "売上", amount: 60000 }] },
     choices: ["受取商品券", "売上", "他店商品券", "現金", "売掛金"],
-    explanation: "信販会社系の商品券は「受取商品券」などで処理します（「他店商品券」とする場合もありますが、検定では区別することを確認）。ここでは一般的な「受取商品券」とします。"
+    explanation: "信販会社系の商品券は「受取商品券」などで処理します。"
   },
   {
     id: '212', major: 'merchandise', sub: 'credit_gift',
@@ -315,7 +372,29 @@ const QUESTIONS = [
       credit: [{ accountName: "買掛金", amount: 100000 }, { accountName: "現金", amount: 2000 }] 
     },
     choices: ["仕入", "現金", "発送費", "買掛金", "支払手数料"],
-    explanation: "【付随費用（仕入）】仕入諸掛り（引取運賃など）は、仕入原価（仕入勘定）に含めます。\n仕入原価：商品 100,000 ＋ 運賃 2,000 ＝ 102,000円"
+    explanation: "【付随費用（仕入）】仕入諸掛り（引取運賃など）は、仕入原価（仕入勘定）に含めます。\n仕入原価：商品 100,000 ＋ 運賃 2,000 ＝ 102,000円",
+    explanationSteps: [
+      {
+        highlight: "引取運賃 2,000円 を現金で支払った",
+        entries: [{ side: 'credit', account: '現金', amount: 2000 }],
+        comment: "まず、運賃の現金支払いを記録します。"
+      },
+      {
+        highlight: "代金は掛けとした",
+        entries: [{ side: 'credit', account: '買掛金', amount: 100000 }],
+        comment: "商品代金は後払いなので「買掛金」とします。"
+      },
+      {
+        highlight: "商品 100,000円 を仕入れ",
+        entries: [{ side: 'debit', account: '仕入', amount: '???' }],
+        comment: "借方の「仕入」には、商品代金に運賃（付随費用）を足した金額が入ります。"
+      },
+      {
+        highlight: "引取運賃 2,000円",
+        entries: [{ side: 'debit', account: '仕入', amount: 102000 }],
+        comment: "100,000円 + 2,000円 = 102,000円 が取得原価となります。"
+      }
+    ]
   },
   {
     id: '232', major: 'merchandise', sub: 'shipping',
@@ -350,7 +429,29 @@ const QUESTIONS = [
     text: "銀行から 1,000,000円 を借り入れ、利息を差し引かれた残額が当座預金に振り込まれた（利息 1万円）。",
     correctEntries: { debit: [{ accountName: "当座預金", amount: 990000 }, { accountName: "支払利息", amount: 10000 }], credit: [{ accountName: "借入金", amount: 1000000 }] },
     choices: ["当座預金", "支払利息", "借入金", "現金", "手形借入金"],
-    explanation: "借入額全額を貸方に、利息は「支払利息」、手取額を借方に記入します。"
+    explanation: "借入額全額を貸方に、利息は「支払利息」、手取額を借方に記入します。",
+    explanationSteps: [
+      {
+        highlight: "銀行から 1,000,000円 を借り入れ",
+        entries: [{ side: 'credit', account: '借入金', amount: 1000000 }],
+        comment: "返済義務があるので、負債の「借入金」を貸方に記録します。"
+      },
+      {
+        highlight: "利息 1万円",
+        entries: [{ side: 'debit', account: '支払利息', amount: 10000 }],
+        comment: "差し引かれた利息は「支払利息」（費用）として借方に計上します。"
+      },
+      {
+        highlight: "利息を差し引かれた残額が当座預金に",
+        entries: [{ side: 'debit', account: '当座預金', amount: '???' }],
+        comment: "手取り額を計算します。100万円から1万円を引きます。"
+      },
+      {
+        highlight: "利息を差し引かれた残額",
+        entries: [{ side: 'debit', account: '当座預金', amount: 990000 }],
+        comment: "1,000,000 - 10,000 = 990,000円 が当座預金に入ります。"
+      }
+    ]
   },
   {
     id: '312', major: 'notes', sub: 'loan',
@@ -389,7 +490,29 @@ const QUESTIONS = [
     text: "従業員の給料 200,000円 を支払い、所得税の源泉徴収分 5,000円 を差し引いた残額を現金で手渡した。",
     correctEntries: { debit: [{ accountName: "給料", amount: 200000 }], credit: [{ accountName: "預り金", amount: 5000 }, { accountName: "現金", amount: 195000 }] },
     choices: ["給料", "預り金", "現金", "立替金", "法定福利費"],
-    explanation: "給料から天引きした税金などは、会社が一時的に預かるため「預り金」（負債）とします。"
+    explanation: "給料から天引きした税金などは、会社が一時的に預かるため「預り金」（負債）とします。",
+    explanationSteps: [
+      {
+        highlight: "給料 200,000円 を支払い",
+        entries: [{ side: 'debit', account: '給料', amount: 200000 }],
+        comment: "給料の総額を費用の発生として借方に計上します。"
+      },
+      {
+        highlight: "所得税の源泉徴収分 5,000円",
+        entries: [{ side: 'credit', account: '預り金', amount: 5000 }],
+        comment: "本人に渡さず会社が預かる分は「預り金」（負債）です。"
+      },
+      {
+        highlight: "残額を現金で手渡した",
+        entries: [{ side: 'credit', account: '現金', amount: '???' }],
+        comment: "手取り額を計算して現金を減らします。"
+      },
+      {
+        highlight: "残額",
+        entries: [{ side: 'credit', account: '現金', amount: 195000 }],
+        comment: "200,000 - 5,000 = 195,000円 です。"
+      }
+    ]
   },
   {
     id: '413', major: 'assets_expenses', sub: 'expenses_taxes',
@@ -406,7 +529,29 @@ const QUESTIONS = [
     text: "決算：売掛金残高 500,000円 に対し 2% の貸倒れを見積もる。残高は 4,000円 である（差額補充法）。",
     correctEntries: { debit: [{ accountName: "貸倒引当金繰入", amount: 6000 }], credit: [{ accountName: "貸倒引当金", amount: 6000 }] },
     choices: ["貸倒引当金繰入", "貸倒引当金", "貸倒損失", "売掛金", "現金"],
-    explanation: "目標額 10,000 - 残高 4,000 = 6,000円 を繰り入れます。"
+    explanation: "目標額 10,000 - 残高 4,000 = 6,000円 を繰り入れます。",
+    explanationSteps: [
+      {
+        highlight: "2% の貸倒れを見積もる",
+        entries: [{ side: 'credit', account: '貸倒引当金', amount: '???' }],
+        comment: "将来の損失に備えるため、貸倒引当金（資産のマイナス項目）を設定（貸方）します。まずは目標額を計算しましょう。"
+      },
+      {
+        highlight: "売掛金残高 500,000円 に対し 2%",
+        entries: [], // Just comment
+        comment: "500,000 × 0.02 = 10,000円 が目標の積立額です。"
+      },
+      {
+        highlight: "残高は 4,000円 である",
+        entries: [{ side: 'credit', account: '貸倒引当金', amount: 6000 }],
+        comment: "既に4,000円あるので、足りない分（10,000 - 4,000 = 6,000円）だけ補充します。"
+      },
+      {
+        highlight: "差額補充法",
+        entries: [{ side: 'debit', account: '貸倒引当金繰入', amount: 6000 }],
+        comment: "補充する額を「貸倒引当金繰入」（費用）として借方に計上します。"
+      }
+    ]
   },
   // Sub: Depreciation
   {
@@ -414,7 +559,24 @@ const QUESTIONS = [
     text: "建物（取得原価 3,000,000円）の減価償却を行う。耐用年数30年、残存価額ゼロ、定額法、直接法。",
     correctEntries: { debit: [{ accountName: "減価償却費", amount: 100000 }], credit: [{ accountName: "建物", amount: 100000 }] },
     choices: ["減価償却費", "建物", "減価償却累計額", "備品", "損益"],
-    explanation: "3,000,000 ÷ 30 = 100,000。直接法なので貸方は資産科目（建物）を減らします。"
+    explanation: "3,000,000 ÷ 30 = 100,000。直接法なので貸方は資産科目（建物）を減らします。",
+    explanationSteps: [
+      {
+        highlight: "減価償却を行う",
+        entries: [{ side: 'debit', account: '減価償却費', amount: '???' }],
+        comment: "決算において、固定資産の価値の減少分を「減価償却費」（費用）として計上します。"
+      },
+      {
+        highlight: "取得原価 3,000,000円 ... 耐用年数30年 ... 定額法",
+        entries: [{ side: 'debit', account: '減価償却費', amount: 100000 }],
+        comment: "金額計算: 3,000,000円 ÷ 30年 = 100,000円"
+      },
+      {
+        highlight: "直接法",
+        entries: [{ side: 'credit', account: '建物', amount: 100000 }],
+        comment: "直接法では、建物の勘定（資産）を貸方で直接減らします。"
+      }
+    ]
   },
   // Sub: Accruals
   {
@@ -422,7 +584,24 @@ const QUESTIONS = [
     text: "消耗品の期末棚卸高は 2,000円 であった（購入時に全額費用処理している）。",
     correctEntries: { debit: [{ accountName: "消耗品", amount: 2000 }], credit: [{ accountName: "消耗品費", amount: 2000 }] },
     choices: ["消耗品", "消耗品費", "備品", "現金", "未払金"],
-    explanation: "未使用分を資産（消耗品）に計上し、費用を取り消します。"
+    explanation: "未使用分を資産（消耗品）に計上し、費用を取り消します。",
+    explanationSteps: [
+      {
+        highlight: "購入時に全額費用処理している",
+        entries: [],
+        comment: "買った時にすべて「消耗品費」にしていましたが、まだ使っていない分があります。"
+      },
+      {
+        highlight: "期末棚卸高は 2,000円",
+        entries: [{ side: 'debit', account: '消耗品', amount: 2000 }],
+        comment: "残っている分を「消耗品」（資産）として借方に計上します。"
+      },
+      {
+        highlight: "期末棚卸高は 2,000円",
+        entries: [{ side: 'credit', account: '消耗品費', amount: 2000 }],
+        comment: "その分だけ、以前計上した費用（消耗品費）を取り消すために貸方に記入します。"
+      }
+    ]
   },
   {
     id: '522', major: 'closing', sub: 'accruals',
@@ -482,7 +661,7 @@ let userStats = {
 // --- Core Logic ---
 
 function initApp() {
-  console.log("App Initializing V5...");
+  console.log("App Initializing V6...");
   loadStats();
   renderHomeStats();
   renderHomeMenu();
@@ -1027,16 +1206,31 @@ function startExplanationMode() {
   if (q.explanationSteps && q.explanationSteps.length > 0) {
     explanationState.steps = [...q.explanationSteps];
   } else {
-    // Generate a single "Result" step fallback
+    // Generate a simple step fallback: Debit then Credit
     const debitEntries = q.correctEntries.debit.map(e => ({ side: 'debit', account: e.accountName, amount: e.amount }));
     const creditEntries = q.correctEntries.credit.map(e => ({ side: 'credit', account: e.accountName, amount: e.amount }));
-    explanationState.steps = [
-      {
-        highlight: q.text,
-        entries: [...debitEntries, ...creditEntries],
+    
+    explanationState.steps = [];
+    if(debitEntries.length > 0) {
+      explanationState.steps.push({
+        highlight: "",
+        entries: debitEntries,
+        comment: "借方の仕訳を確認します。"
+      });
+    }
+    if(creditEntries.length > 0) {
+      explanationState.steps.push({
+        highlight: "",
+        entries: creditEntries,
+        comment: "貸方の仕訳を確認します。"
+      });
+    }
+    // Add summary
+    explanationState.steps.push({
+        highlight: "",
+        entries: [],
         comment: q.explanation || "全体の流れを確認しましょう。"
-      }
-    ];
+    });
   }
 
   // Initial State: "Start" step (index -1)
@@ -1105,11 +1299,11 @@ function renderExplStep(index) {
   } else {
     const step = steps[index];
     if (step.highlight && q.text.includes(step.highlight)) {
-      // Simple string replacement for highlighting
-      // Note: Replaces only the first occurrence which is usually sufficient for short questions
+      // Replaces only the first occurrence which is usually sufficient
+      // Added background and transition
       const highlighted = q.text.replace(
         step.highlight, 
-        `<span class="bg-yellow-300 rounded px-1 box-decoration-clone">${step.highlight}</span>`
+        `<span class="bg-yellow-300 rounded px-1 box-decoration-clone transition-all duration-300">${step.highlight}</span>`
       );
       textContainer.innerHTML = highlighted;
     } else {
@@ -1117,35 +1311,69 @@ function renderExplStep(index) {
     }
   }
 
-  // 2. Render Journal Entries (Accumulative)
+  // 2. Render Journal Entries (Accumulate & Update logic)
   const debitContainer = document.getElementById('expl-debit-area');
   const creditContainer = document.getElementById('expl-credit-area');
   debitContainer.innerHTML = '';
   creditContainer.innerHTML = '';
 
-  // Collect all entries up to current step
-  const currentEntries = [];
+  // Logic: Replay steps from 0 to current index to build the state
+  // This allows "updates" to previous rows (e.g. adding amount later)
+  const currentDebitState = [];
+  const currentCreditState = [];
+
+  const updateState = (stateArray, entry) => {
+    // Check if account already exists in this state (to update amount)
+    const existingIdx = stateArray.findIndex(e => e.account === entry.account);
+    if (existingIdx >= 0) {
+      // Update existing entry (e.g. from '???' to number)
+      stateArray[existingIdx] = { ...stateArray[existingIdx], ...entry };
+    } else {
+      // Add new entry
+      stateArray.push({ ...entry });
+    }
+  };
+
   if (index > -1) {
     for (let i = 0; i <= index; i++) {
-      if (steps[i].entries) {
-        currentEntries.push(...steps[i].entries);
-      }
+      const stepEntries = steps[i].entries || [];
+      stepEntries.forEach(entry => {
+        if (entry.side === 'debit') updateState(currentDebitState, entry);
+        if (entry.side === 'credit') updateState(currentCreditState, entry);
+      });
     }
   }
 
   // Render Function Helper
   const renderEntry = (entry) => {
     const el = document.createElement('div');
-    el.className = "flex justify-between items-center bg-white border border-slate-200 p-2 rounded shadow-sm animate-fade-in";
+    el.className = "flex justify-between items-center bg-white border border-slate-200 p-2 rounded shadow-sm animate-fade-in transition-all duration-300";
+    
+    // Highlight if this specific entry was just added or updated in the CURRENT step
+    // Logic: If this entry matches one in the current step's 'entries' list
+    let isNew = false;
+    if (index > -1) {
+      const currentStepEntries = steps[index].entries || [];
+      isNew = currentStepEntries.some(e => e.account === entry.account && e.side === entry.side);
+    }
+    
+    if (isNew) {
+      el.classList.add('border-blue-400', 'bg-blue-50');
+    }
+
+    const amountDisplay = (typeof entry.amount === 'number') 
+      ? entry.amount.toLocaleString() 
+      : (entry.amount || '');
+
     el.innerHTML = `
       <span class="font-bold text-slate-700 text-sm">${entry.account}</span>
-      <span class="font-mono text-slate-600">${entry.amount.toLocaleString()}</span>
+      <span class="font-mono ${entry.amount === '???' ? 'text-slate-300 font-bold' : 'text-slate-600'}">${amountDisplay}</span>
     `;
     return el;
   };
 
-  currentEntries.filter(e => e.side === 'debit').forEach(e => debitContainer.appendChild(renderEntry(e)));
-  currentEntries.filter(e => e.side === 'credit').forEach(e => creditContainer.appendChild(renderEntry(e)));
+  currentDebitState.forEach(e => debitContainer.appendChild(renderEntry(e)));
+  currentCreditState.forEach(e => creditContainer.appendChild(renderEntry(e)));
 
   // 3. Render Commentary
   const commentContainer = document.getElementById('expl-commentary');
@@ -1158,7 +1386,8 @@ function renderExplStep(index) {
   // 4. Update Progress Dots
   const dotsContainer = document.getElementById('expl-progress-dots');
   dotsContainer.innerHTML = '';
-  // Start dot (Initial state)
+  
+  // Start dot
   const startDot = document.createElement('div');
   startDot.className = `w-2 h-2 rounded-full transition-colors ${index === -1 ? 'bg-blue-600' : 'bg-slate-300'}`;
   dotsContainer.appendChild(startDot);
@@ -1189,7 +1418,7 @@ function updateExplControls() {
        playText.textContent = "もう一度";
        playIcon.textContent = "↻";
     } else {
-       playText.textContent = "再生";
+       playText.textContent = "解説を再生";
        playIcon.textContent = "▶";
     }
   }
@@ -1197,7 +1426,7 @@ function updateExplControls() {
 
 
 // --- Persistence ---
-const STORAGE_KEY = 'zensho_bookkeeping_v4';
+const STORAGE_KEY = 'zensho_bookkeeping_v6';
 
 function loadStats() {
   const s = localStorage.getItem(STORAGE_KEY);
