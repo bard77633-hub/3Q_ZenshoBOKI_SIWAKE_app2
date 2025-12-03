@@ -2,11 +2,61 @@
 
 /**
  * Zensho Bookkeeping Grade 3 Practice App
- * Logic Controller - V7 (Expanded Content & UI Improvements)
+ * Logic Controller - V8 (Randomized Amounts)
  */
 
+// --- Helpers for Randomization ---
+const Randomizer = {
+  // Round to nearest precision (e.g. 1000)
+  round: (num, precision = 1000) => {
+    return Math.round(num / precision) * precision;
+  },
+
+  // Get random amount based on base value with variation
+  // variation: 0.2 means +/- 20%
+  getAmount: (base, variation = 0.2, precision = 1000) => {
+    const min = base * (1 - variation);
+    const max = base * (1 + variation);
+    const raw = Math.random() * (max - min) + min;
+    return Randomizer.round(raw, precision);
+  },
+
+  // Format number to string
+  fmt: (num) => num.toLocaleString(),
+
+  // Helper to replace all occurrences in explanation steps
+  updateSteps: (steps, mapObj) => {
+    return steps.map(step => {
+      let newHighlight = step.highlight;
+      let newComment = step.comment;
+      
+      // Replace text placeholders
+      Object.keys(mapObj).forEach(key => {
+        // Regex to replace all occurrences
+        const regex = new RegExp(key, 'g');
+        if (newHighlight) newHighlight = newHighlight.replace(regex, mapObj[key]);
+        if (newComment) newComment = newComment.replace(regex, mapObj[key]);
+      });
+
+      // Update entries if they match the map values (numeric check)
+      // Note: This matches based on the 'base' amount logic defined in mutate
+      const newEntries = step.entries ? step.entries.map(e => {
+        // We can't easily map amounts here without more metadata, 
+        // so we rely on the mutate function to rebuild entries or strict replacement.
+        // For simplicity in this app, we will rebuild steps in the mutate function usually.
+        return { ...e }; 
+      }) : [];
+
+      return {
+        highlight: newHighlight,
+        comment: newComment,
+        entries: newEntries
+      };
+    });
+  }
+};
+
 // --- Genre Configuration ---
-// Defines the hierarchy for the menu
 const GENRE_STRUCTURE = [
   {
     id: 'cash_savings',
@@ -55,28 +105,40 @@ const GENRE_STRUCTURE = [
   }
 ];
 
-// --- Data: Questions (Categorized) ---
+// --- Data: Questions ---
+// Added 'mutate' function to questions to allow dynamic amount generation
 const QUESTIONS = [
   // --- Cash & Savings ---
-  // Sub: Cash
   {
     id: '101', major: 'cash_savings', sub: 'cash',
     text: "現金 2,500,000円 を元入れして営業を開始した。",
     correctEntries: { debit: [{ accountName: "現金", amount: 2500000 }], credit: [{ accountName: "資本金", amount: 2500000 }] },
     choices: ["現金", "資本金", "借入金", "当座預金", "備品"],
     explanation: "【開業】元手は「資本金」として処理します。",
-    explanationSteps: [
-      {
-        highlight: "現金 2,500,000円",
-        entries: [{ side: 'debit', account: '現金', amount: 2500000 }],
-        comment: "お店に「現金」という資産が増えました。資産の増加は借方（左）です。"
-      },
-      {
-        highlight: "元入れして営業を開始",
-        entries: [{ side: 'credit', account: '資本金', amount: 2500000 }],
-        comment: "この現金は元手として出資されたものです。「資本金」（純資産）の増加として貸方（右）に記入します。"
-      }
-    ]
+    explanationSteps: [], // Populated by mutate
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(2500000, 0.4, 10000); // +/- 40%, round to 10k
+      const sAmt = Randomizer.fmt(amt);
+      
+      q.text = `現金 ${sAmt}円 を元入れして営業を開始した。`;
+      q.correctEntries = { 
+        debit: [{ accountName: "現金", amount: amt }], 
+        credit: [{ accountName: "資本金", amount: amt }] 
+      };
+      q.explanationSteps = [
+        {
+          highlight: `現金 ${sAmt}円`,
+          entries: [{ side: 'debit', account: '現金', amount: amt }],
+          comment: "お店に「現金」という資産が増えました。"
+        },
+        {
+          highlight: "元入れして営業を開始",
+          entries: [{ side: 'credit', account: '資本金', amount: amt }],
+          comment: "この現金は元手として出資されたものです。「資本金」（純資産）の増加として処理します。"
+        }
+      ];
+      return q;
+    }
   },
   {
     id: '102', major: 'cash_savings', sub: 'cash',
@@ -84,18 +146,17 @@ const QUESTIONS = [
     correctEntries: { debit: [{ accountName: "引出金", amount: 30000 }], credit: [{ accountName: "現金", amount: 30000 }] },
     choices: ["引出金", "現金", "資本金", "給料", "雑費"],
     explanation: "【引出金】店主の私用は資本金の減少または「引出金」勘定で処理します。",
-    explanationSteps: [
-      {
-        highlight: "現金 30,000円 を引き出した",
-        entries: [{ side: 'credit', account: '現金', amount: 30000 }],
-        comment: "お店の「現金」（資産）が減りました。資産の減少は貸方（右）です。"
-      },
-      {
-        highlight: "店主が私用で",
-        entries: [{ side: 'debit', account: '引出金', amount: 30000 }],
-        comment: "店主個人のための支出は「引出金」（資本の控除）として処理します。"
-      }
-    ]
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(30000, 0.5, 1000); 
+      const sAmt = Randomizer.fmt(amt);
+      q.text = `店主が私用で現金 ${sAmt}円 を引き出した。`;
+      q.correctEntries = { debit: [{ accountName: "引出金", amount: amt }], credit: [{ accountName: "現金", amount: amt }] };
+      q.explanationSteps = [
+        { highlight: `現金 ${sAmt}円 を引き出した`, entries: [{ side: 'credit', account: '現金', amount: amt }], comment: "お店の「現金」が減りました。" },
+        { highlight: "店主が私用で", entries: [{ side: 'debit', account: '引出金', amount: amt }], comment: "店主個人のための支出は「引出金」です。" }
+      ];
+      return q;
+    }
   },
   {
     id: '103', major: 'cash_savings', sub: 'cash',
@@ -103,47 +164,47 @@ const QUESTIONS = [
     correctEntries: { debit: [{ accountName: "通信費", amount: 1000 }], credit: [{ accountName: "現金", amount: 1000 }] },
     choices: ["通信費", "現金", "消耗品費", "租税公課", "雑費"],
     explanation: "切手は「通信費」で処理します。",
-    explanationSteps: [
-      {
-        highlight: "現金で購入した",
-        entries: [{ side: 'credit', account: '現金', amount: 1000 }],
-        comment: "現金を支払ったので、資産の減少として貸方（右）へ。"
-      },
-      {
-        highlight: "切手 1,000円",
-        entries: [{ side: 'debit', account: '通信費', amount: 1000 }],
-        comment: "切手代は「通信費」（費用）として処理します。費用の発生は借方（左）です。"
-      }
-    ]
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(1000, 0.5, 100); // Round to 100
+      const sAmt = Randomizer.fmt(amt);
+      q.text = `郵便局で切手 ${sAmt}円 を現金で購入した。`;
+      q.correctEntries = { debit: [{ accountName: "通信費", amount: amt }], credit: [{ accountName: "現金", amount: amt }] };
+      q.explanationSteps = [
+        { highlight: "現金で購入した", entries: [{ side: 'credit', account: '現金', amount: amt }], comment: "現金を支払ったので貸方へ。" },
+        { highlight: `切手 ${sAmt}円`, entries: [{ side: 'debit', account: '通信費', amount: amt }], comment: "切手代は「通信費」です。" }
+      ];
+      return q;
+    }
   },
   {
     id: '104_new', major: 'cash_savings', sub: 'cash',
     text: "現金 5,000,000円 を元入れして開業し、直ちに当座預金に 1,000,000円 を預け入れた。",
-    correctEntries: { debit: [{ accountName: "現金", amount: 4000000 }, { accountName: "当座預金", amount: 1000000 }], credit: [{ accountName: "資本金", amount: 5000000 }] },
+    correctEntries: {},
     choices: ["現金", "当座預金", "資本金", "借入金", "普通預金"],
     explanation: "元入れ総額は資本金ですが、現金の一部はすぐに当座預金になっています。",
-    explanationSteps: [
-      {
-        highlight: "現金 5,000,000円 を元入れ",
-        entries: [{ side: 'credit', account: '資本金', amount: 5000000 }],
-        comment: "元入総額は500万円です。これを資本金とします。"
-      },
-      {
-        highlight: "当座預金に 1,000,000円 を預け入れた",
-        entries: [{ side: 'debit', account: '当座預金', amount: 1000000 }],
-        comment: "そのうち100万円は当座預金に入金されました。"
-      },
-      {
-        highlight: "現金 ... 元入れして",
-        entries: [{ side: 'debit', account: '現金', amount: '???' }],
-        comment: "残りが手元の現金になります。500万 - 100万 = 400万円です。"
-      },
-      {
-        highlight: "現金 ... 元入れして",
-        entries: [{ side: 'debit', account: '現金', amount: 4000000 }],
-        comment: "借方の合計も500万円となり、貸借が一致します。"
-      }
-    ]
+    mutate: (q) => {
+      // Total Capital around 5m
+      const total = Randomizer.getAmount(5000000, 0.2, 100000);
+      // Deposit part around 1m
+      const deposit = Randomizer.getAmount(1000000, 0.2, 10000);
+      const cash = total - deposit;
+      
+      const sTotal = Randomizer.fmt(total);
+      const sDeposit = Randomizer.fmt(deposit);
+      const sCash = Randomizer.fmt(cash);
+
+      q.text = `現金 ${sTotal}円 を元入れして開業し、直ちに当座預金に ${sDeposit}円 を預け入れた。`;
+      q.correctEntries = {
+        debit: [{ accountName: "現金", amount: cash }, { accountName: "当座預金", amount: deposit }],
+        credit: [{ accountName: "資本金", amount: total }]
+      };
+      q.explanationSteps = [
+        { highlight: `現金 ${sTotal}円 を元入れ`, entries: [{ side: 'credit', account: '資本金', amount: total }], comment: `元入総額は${sTotal}円です。これを資本金とします。` },
+        { highlight: `当座預金に ${sDeposit}円`, entries: [{ side: 'debit', account: '当座預金', amount: deposit }], comment: `そのうち${sDeposit}円は当座預金に入金されました。` },
+        { highlight: "現金 ... 元入れして", entries: [{ side: 'debit', account: '現金', amount: cash }], comment: `残りが手元の現金になります。${sTotal} - ${sDeposit} = ${sCash}円です。` }
+      ];
+      return q;
+    }
   },
   // Sub: Checking
   {
@@ -152,18 +213,17 @@ const QUESTIONS = [
     correctEntries: { debit: [{ accountName: "当座預金", amount: 1000000 }], credit: [{ accountName: "現金", amount: 1000000 }] },
     choices: ["当座預金", "現金", "普通預金", "借入金", "資本金"],
     explanation: "当座預金口座への預け入れの仕訳です。",
-    explanationSteps: [
-      {
-        highlight: "現金 1,000,000円 を預け入れた",
-        entries: [{ side: 'credit', account: '現金', amount: 1000000 }],
-        comment: "手元の現金を預けたので、現金（資産）が減ります。"
-      },
-      {
-        highlight: "当座取引契約を結び",
-        entries: [{ side: 'debit', account: '当座預金', amount: 1000000 }],
-        comment: "代わりに当座預金口座の残高（資産）が増えます。"
-      }
-    ]
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(1000000, 0.3, 10000);
+      const sAmt = Randomizer.fmt(amt);
+      q.text = `銀行と当座取引契約を結び、現金 ${sAmt}円 を預け入れた。`;
+      q.correctEntries = { debit: [{ accountName: "当座預金", amount: amt }], credit: [{ accountName: "現金", amount: amt }] };
+      q.explanationSteps = [
+        { highlight: `現金 ${sAmt}円 を預け入れた`, entries: [{ side: 'credit', account: '現金', amount: amt }], comment: "手元の現金を預けたので、現金が減ります。" },
+        { highlight: "当座取引契約を結び", entries: [{ side: 'debit', account: '当座預金', amount: amt }], comment: "当座預金口座の残高が増えます。" }
+      ];
+      return q;
+    }
   },
   {
     id: '112', major: 'cash_savings', sub: 'checking',
@@ -171,25 +231,37 @@ const QUESTIONS = [
     correctEntries: { debit: [{ accountName: "買掛金", amount: 150000 }], credit: [{ accountName: "当座預金", amount: 150000 }] },
     choices: ["買掛金", "当座預金", "現金", "支払手形", "未払金"],
     explanation: "小切手の振出は「当座預金」の減少です。",
-    explanationSteps: [
-      {
-        highlight: "買掛金 150,000円 を支払う",
-        entries: [{ side: 'debit', account: '買掛金', amount: 150000 }],
-        comment: "買掛金（負債）を支払うので、負債の減少として借方（左）へ。"
-      },
-      {
-        highlight: "小切手を振り出した",
-        entries: [{ side: 'credit', account: '当座預金', amount: 150000 }],
-        comment: "小切手を振り出すと、当座預金口座から引き落とされます。当座預金（資産）の減少です。"
-      }
-    ]
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(150000, 0.3, 1000);
+      const sAmt = Randomizer.fmt(amt);
+      q.text = `買掛金 ${sAmt}円 を支払うため、小切手を振り出した。`;
+      q.correctEntries = { debit: [{ accountName: "買掛金", amount: amt }], credit: [{ accountName: "当座預金", amount: amt }] };
+      q.explanationSteps = [
+        { highlight: `買掛金 ${sAmt}円`, entries: [{ side: 'debit', account: '買掛金', amount: amt }], comment: "買掛金を支払うので、負債の減少です。" },
+        { highlight: "小切手を振り出した", entries: [{ side: 'credit', account: '当座預金', amount: amt }], comment: "小切手の振出は当座預金の減少です。" }
+      ];
+      return q;
+    }
   },
   {
     id: '113', major: 'cash_savings', sub: 'checking',
     text: "買掛金 200,000円 の支払いに対し、当座預金残高が 150,000円 しかなかったが、借越契約があるため小切手を振り出した。（一勘定法）",
     correctEntries: { debit: [{ accountName: "買掛金", amount: 200000 }], credit: [{ accountName: "当座", amount: 200000 }] },
     choices: ["当座", "当座預金", "当座借越", "買掛金", "現金"],
-    explanation: "【一勘定法】当座預金と当座借越をまとめて「当座」勘定で処理します。"
+    explanation: "【一勘定法】当座預金と当座借越をまとめて「当座」勘定で処理します。",
+    mutate: (q) => {
+      const payment = Randomizer.getAmount(200000, 0.2, 10000);
+      const balance = payment - Randomizer.getAmount(50000, 0.1, 1000); // Balance less than payment
+      const sPay = Randomizer.fmt(payment);
+      const sBal = Randomizer.fmt(balance);
+      q.text = `買掛金 ${sPay}円 の支払いに対し、当座預金残高が ${sBal}円 しかなかったが、借越契約があるため小切手を振り出した。（一勘定法）`;
+      q.correctEntries = { debit: [{ accountName: "買掛金", amount: payment }], credit: [{ accountName: "当座", amount: payment }] };
+      q.explanationSteps = [
+        { highlight: `買掛金 ${sPay}円`, entries: [{ side: 'debit', account: '買掛金', amount: payment }], comment: "買掛金を支払います。" },
+        { highlight: "借越契約があるため...（一勘定法）", entries: [{ side: 'credit', account: '当座', amount: payment }], comment: "一勘定法なので、預金残高に関わらず「当座」で処理します。" }
+      ];
+      return q;
+    }
   },
   // Sub: Petty Cash
   {
@@ -197,92 +269,89 @@ const QUESTIONS = [
     text: "小口現金係に、小切手 50,000円 を振り出して手渡した。",
     correctEntries: { debit: [{ accountName: "小口現金", amount: 50000 }], credit: [{ accountName: "当座預金", amount: 50000 }] },
     choices: ["小口現金", "当座預金", "現金", "雑費", "通信費"],
-    explanation: "定額資金前渡法（インプレスト・システム）による資金の補給です。"
+    explanation: "定額資金前渡法（インプレスト・システム）による資金の補給です。",
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(50000, 0.2, 1000);
+      const sAmt = Randomizer.fmt(amt);
+      q.text = `小口現金係に、小切手 ${sAmt}円 を振り出して手渡した。`;
+      q.correctEntries = { debit: [{ accountName: "小口現金", amount: amt }], credit: [{ accountName: "当座預金", amount: amt }] };
+      return q;
+    }
   },
   {
     id: '122', major: 'cash_savings', sub: 'petty_cash',
     text: "小口現金係から、通信費 5,000円 と 消耗品費 3,000円 の支払報告を受けた。",
-    correctEntries: { debit: [{ accountName: "通信費", amount: 5000 }, { accountName: "消耗品費", amount: 3000 }], credit: [{ accountName: "小口現金", amount: 8000 }] },
+    correctEntries: {},
     choices: ["通信費", "消耗品費", "小口現金", "雑費", "未払金"],
     explanation: "報告を受けた時点で、費用の計上と小口現金の減少を記録します。",
-    explanationSteps: [
-      {
-        highlight: "通信費 5,000円",
-        entries: [{ side: 'debit', account: '通信費', amount: 5000 }],
-        comment: "使った経費（通信費）を借方に計上します。"
-      },
-      {
-        highlight: "消耗品費 3,000円",
-        entries: [{ side: 'debit', account: '消耗品費', amount: 3000 }],
-        comment: "同様に、消耗品費も借方に計上します。"
-      },
-      {
-        highlight: "支払報告を受けた",
-        entries: [{ side: 'credit', account: '小口現金', amount: '???' }],
-        comment: "手元の小口現金が減ったことになります。合計いくら減ったでしょうか？"
-      },
-      {
-        highlight: "支払報告を受けた",
-        entries: [{ side: 'credit', account: '小口現金', amount: 8000 }],
-        comment: "5,000円 + 3,000円 = 8,000円 が小口現金の減少額です。"
-      }
-    ]
+    mutate: (q) => {
+      const com = Randomizer.getAmount(5000, 0.4, 100);
+      const sup = Randomizer.getAmount(3000, 0.4, 100);
+      const total = com + sup;
+      q.text = `小口現金係から、通信費 ${Randomizer.fmt(com)}円 と 消耗品費 ${Randomizer.fmt(sup)}円 の支払報告を受けた。`;
+      q.correctEntries = { 
+        debit: [{ accountName: "通信費", amount: com }, { accountName: "消耗品費", amount: sup }], 
+        credit: [{ accountName: "小口現金", amount: total }] 
+      };
+      q.explanationSteps = [
+        { highlight: `通信費 ${Randomizer.fmt(com)}円`, entries: [{ side: 'debit', account: '通信費', amount: com }], comment: "通信費を計上します。" },
+        { highlight: `消耗品費 ${Randomizer.fmt(sup)}円`, entries: [{ side: 'debit', account: '消耗品費', amount: sup }], comment: "消耗品費を計上します。" },
+        { highlight: "支払報告を受けた", entries: [{ side: 'credit', account: '小口現金', amount: total }], comment: `${Randomizer.fmt(com)} + ${Randomizer.fmt(sup)} = ${Randomizer.fmt(total)}円 が減少額です。` }
+      ];
+      return q;
+    }
   },
   // Sub: Over/Short
   {
     id: '131', major: 'cash_savings', sub: 'over_short',
     text: "現金の実際有高を調べたところ 58,000円 であり、帳簿残高 60,000円 と一致しなかった。",
-    correctEntries: { debit: [{ accountName: "現金過不足", amount: 2000 }], credit: [{ accountName: "現金", amount: 2000 }] },
+    correctEntries: {},
     choices: ["現金過不足", "現金", "雑損", "雑益", "引出金"],
     explanation: "実際有高が少ないため、帳簿の現金を減らして一致させます。相手科目は「現金過不足」です。",
-    explanationSteps: [
-      {
-        highlight: "実際有高 ... 帳簿残高 ... と一致しなかった",
-        entries: [{ side: 'credit', account: '現金', amount: '???' }],
-        comment: "帳簿の方を現実に合わせます。実際(58,000) < 帳簿(60,000) なので、帳簿の現金を減らす必要があります。"
-      },
-      {
-        highlight: "実際有高を調べたところ 58,000円",
-        entries: [{ side: 'credit', account: '現金', amount: 2000 }],
-        comment: "差額の2,000円分、現金を貸方で減らします。"
-      },
-      {
-        highlight: "一致しなかった",
-        entries: [{ side: 'debit', account: '現金過不足', amount: 2000 }],
-        comment: "原因がわかるまでは、仮の科目「現金過不足」で処理します。"
-      }
-    ]
+    mutate: (q) => {
+      const book = Randomizer.getAmount(60000, 0.2, 1000);
+      const diff = Randomizer.getAmount(2000, 0.5, 100);
+      const actual = book - diff;
+      q.text = `現金の実際有高を調べたところ ${Randomizer.fmt(actual)}円 であり、帳簿残高 ${Randomizer.fmt(book)}円 と一致しなかった。`;
+      q.correctEntries = { debit: [{ accountName: "現金過不足", amount: diff }], credit: [{ accountName: "現金", amount: diff }] };
+      q.explanationSteps = [
+        { highlight: "実際有高 ... 帳簿残高 ... と一致しなかった", entries: [{ side: 'credit', account: '現金', amount: diff }], comment: `実際(${Randomizer.fmt(actual)}) < 帳簿(${Randomizer.fmt(book)}) なので、帳簿を${Randomizer.fmt(diff)}円減らします。` },
+        { highlight: "一致しなかった", entries: [{ side: 'debit', account: '現金過不足', amount: diff }], comment: "差額は「現金過不足」で処理します。" }
+      ];
+      return q;
+    }
   },
   {
     id: '132', major: 'cash_savings', sub: 'over_short',
     text: "現金過不足 1,000円（貸方残高）の原因が、受取利息の記入漏れと判明した。",
     correctEntries: { debit: [{ accountName: "現金過不足", amount: 1000 }], credit: [{ accountName: "受取利息", amount: 1000 }] },
     choices: ["現金過不足", "受取利息", "現金", "雑益", "雑損"],
-    explanation: "貸方残高（現金過剰）の原因が判明したので、現金過不足を取り消して正しい科目に振り替えます。"
+    explanation: "貸方残高（現金過剰）の原因が判明したので、現金過不足を取り消して正しい科目に振り替えます。",
+    mutate: (q) => {
+       const amt = Randomizer.getAmount(1000, 0.5, 100);
+       q.text = `現金過不足 ${Randomizer.fmt(amt)}円（貸方残高）の原因が、受取利息の記入漏れと判明した。`;
+       q.correctEntries = { debit: [{ accountName: "現金過不足", amount: amt }], credit: [{ accountName: "受取利息", amount: amt }] };
+       return q;
+    }
   },
   {
     id: '133_new', major: 'cash_savings', sub: 'over_short',
     text: "現金の実際有高を調べたところ 85,000円 で、帳簿残高 80,000円 より多かった。",
-    correctEntries: { debit: [{ accountName: "現金", amount: 5000 }], credit: [{ accountName: "現金過不足", amount: 5000 }] },
+    correctEntries: {},
     choices: ["現金", "現金過不足", "雑益", "受取利息", "売掛金"],
     explanation: "実際が多い場合は、帳簿の現金を増やして合わせます。",
-    explanationSteps: [
-      {
-        highlight: "実際有高 ... 帳簿残高 ... より多かった",
-        entries: [{ side: 'debit', account: '現金', amount: '???' }],
-        comment: "実際(85,000) > 帳簿(80,000) なので、帳簿の現金を増やす必要があります。"
-      },
-      {
-        highlight: "85,000円 で、帳簿残高 80,000円",
-        entries: [{ side: 'debit', account: '現金', amount: 5000 }],
-        comment: "差額の5,000円分、現金を借方で増やします。"
-      },
-      {
-        highlight: "多かった",
-        entries: [{ side: 'credit', account: '現金過不足', amount: 5000 }],
-        comment: "原因不明の増加分として「現金過不足」を貸方に記録します。"
-      }
-    ]
+    mutate: (q) => {
+      const book = Randomizer.getAmount(80000, 0.2, 1000);
+      const diff = Randomizer.getAmount(5000, 0.5, 100);
+      const actual = book + diff;
+      q.text = `現金の実際有高を調べたところ ${Randomizer.fmt(actual)}円 で、帳簿残高 ${Randomizer.fmt(book)}円 より多かった。`;
+      q.correctEntries = { debit: [{ accountName: "現金", amount: diff }], credit: [{ accountName: "現金過不足", amount: diff }] };
+      q.explanationSteps = [
+        { highlight: "実際有高 ... 帳簿残高 ... より多かった", entries: [{ side: 'debit', account: '現金', amount: diff }], comment: `実際(${Randomizer.fmt(actual)}) > 帳簿(${Randomizer.fmt(book)}) なので、帳簿を${Randomizer.fmt(diff)}円増やします。` },
+        { highlight: "多かった", entries: [{ side: 'credit', account: '現金過不足', amount: diff }], comment: "増加分は「現金過不足」です。" }
+      ];
+      return q;
+    }
   },
 
   // --- Merchandise ---
@@ -293,18 +362,16 @@ const QUESTIONS = [
     correctEntries: { debit: [{ accountName: "仕入", amount: 300000 }], credit: [{ accountName: "買掛金", amount: 300000 }] },
     choices: ["仕入", "買掛金", "売掛金", "現金", "商品"],
     explanation: "三文法では「仕入」勘定を使用します。",
-    explanationSteps: [
-      {
-        highlight: "商品 300,000円 を仕入れ",
-        entries: [{ side: 'debit', account: '仕入', amount: 300000 }],
-        comment: "商品を仕入れたため、「仕入」（費用）が発生しました。借方（左）に記入します。"
-      },
-      {
-        highlight: "代金は掛けとした",
-        entries: [{ side: 'credit', account: '買掛金', amount: 300000 }],
-        comment: "後で支払う義務である「買掛金」（負債）が増加したので、貸方（右）に記入します。"
-      }
-    ]
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(300000, 0.3, 1000);
+      q.text = `商品 ${Randomizer.fmt(amt)}円 を仕入れ、代金は掛けとした。`;
+      q.correctEntries = { debit: [{ accountName: "仕入", amount: amt }], credit: [{ accountName: "買掛金", amount: amt }] };
+      q.explanationSteps = [
+        { highlight: `商品 ${Randomizer.fmt(amt)}円`, entries: [{ side: 'debit', account: '仕入', amount: amt }], comment: "仕入（費用）の発生です。" },
+        { highlight: "代金は掛けとした", entries: [{ side: 'credit', account: '買掛金', amount: amt }], comment: "買掛金（負債）の増加です。" }
+      ];
+      return q;
+    }
   },
   {
     id: '202', major: 'merchandise', sub: 'purchase_sales',
@@ -312,68 +379,83 @@ const QUESTIONS = [
     correctEntries: { debit: [{ accountName: "売掛金", amount: 450000 }], credit: [{ accountName: "売上", amount: 450000 }] },
     choices: ["売掛金", "売上", "仕入", "現金", "商品"],
     explanation: "三文法では「売上」勘定を使用します。",
-    explanationSteps: [
-      {
-        highlight: "商品 450,000円 を売り上げ",
-        entries: [{ side: 'credit', account: '売上', amount: 450000 }],
-        comment: "商品を売り上げたため、「売上」（収益）が発生しました。収益の発生は貸方（右）です。"
-      },
-      {
-        highlight: "代金は掛けとした",
-        entries: [{ side: 'debit', account: '売掛金', amount: 450000 }],
-        comment: "代金を受け取る権利である「売掛金」（資産）が増加したので、借方（左）に記入します。"
-      }
-    ]
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(450000, 0.3, 1000);
+      q.text = `商品 ${Randomizer.fmt(amt)}円 を売り上げ、代金は掛けとした。`;
+      q.correctEntries = { debit: [{ accountName: "売掛金", amount: amt }], credit: [{ accountName: "売上", amount: amt }] };
+      q.explanationSteps = [
+        { highlight: `商品 ${Randomizer.fmt(amt)}円`, entries: [{ side: 'credit', account: '売上', amount: amt }], comment: "売上（収益）の発生です。" },
+        { highlight: "代金は掛けとした", entries: [{ side: 'debit', account: '売掛金', amount: amt }], comment: "売掛金（資産）の増加です。" }
+      ];
+      return q;
+    }
   },
   {
     id: '203', major: 'merchandise', sub: 'purchase_sales',
     text: "掛けで仕入れた商品 10,000円 を品違いのため返品した。",
     correctEntries: { debit: [{ accountName: "買掛金", amount: 10000 }], credit: [{ accountName: "仕入", amount: 10000 }] },
     choices: ["買掛金", "仕入", "売掛金", "売上", "現金"],
-    explanation: "返品（仕入戻し）は、仕入時の逆仕訳を行います。"
+    explanation: "返品（仕入戻し）は、仕入時の逆仕訳を行います。",
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(10000, 0.5, 100);
+      q.text = `掛けで仕入れた商品 ${Randomizer.fmt(amt)}円 を品違いのため返品した。`;
+      q.correctEntries = { debit: [{ accountName: "買掛金", amount: amt }], credit: [{ accountName: "仕入", amount: amt }] };
+      return q;
+    }
   },
   {
     id: '204', major: 'merchandise', sub: 'purchase_sales',
     text: "商品 500,000円 を仕入れ、代金のうち 200,000円 は現金で支払い、残額は掛けとした。",
-    correctEntries: { debit: [{ accountName: "仕入", amount: 500000 }], credit: [{ accountName: "現金", amount: 200000 }, { accountName: "買掛金", amount: 300000 }] },
+    correctEntries: {},
     choices: ["仕入", "現金", "買掛金", "支払手形", "当座預金"],
     explanation: "代金の一部支払いの複合仕訳です。",
-    explanationSteps: [
-      {
-        highlight: "商品 500,000円 を仕入れ",
-        entries: [{ side: 'debit', account: '仕入', amount: 500000 }],
-        comment: "まず、総額分の「仕入」を借方に計上します。"
-      },
-      {
-        highlight: "200,000円 は現金で支払い",
-        entries: [{ side: 'credit', account: '現金', amount: 200000 }],
-        comment: "支払った分の「現金」を貸方で減らします。"
-      },
-      {
-        highlight: "残額は掛けとした",
-        entries: [{ side: 'credit', account: '買掛金', amount: '???' }],
-        comment: "残りの金額を計算し、「買掛金」とします。"
-      },
-      {
-        highlight: "残額は掛けとした",
-        entries: [{ side: 'credit', account: '買掛金', amount: 300000 }],
-        comment: "500,000円 - 200,000円 = 300,000円 です。"
-      }
-    ]
+    mutate: (q) => {
+      const total = Randomizer.getAmount(500000, 0.3, 10000);
+      const cash = Randomizer.getAmount(200000, 0.3, 10000);
+      const credit = total - cash;
+      q.text = `商品 ${Randomizer.fmt(total)}円 を仕入れ、代金のうち ${Randomizer.fmt(cash)}円 は現金で支払い、残額は掛けとした。`;
+      q.correctEntries = { 
+        debit: [{ accountName: "仕入", amount: total }], 
+        credit: [{ accountName: "現金", amount: cash }, { accountName: "買掛金", amount: credit }] 
+      };
+      q.explanationSteps = [
+        { highlight: `商品 ${Randomizer.fmt(total)}円`, entries: [{ side: 'debit', account: '仕入', amount: total }], comment: "総額を「仕入」とします。" },
+        { highlight: `現金で支払い`, entries: [{ side: 'credit', account: '現金', amount: cash }], comment: "支払った現金を減らします。" },
+        { highlight: "残額は掛けとした", entries: [{ side: 'credit', account: '買掛金', amount: credit }], comment: `${Randomizer.fmt(total)} - ${Randomizer.fmt(cash)} = ${Randomizer.fmt(credit)}円 が買掛金です。` }
+      ];
+      return q;
+    }
   },
   {
     id: '205', major: 'merchandise', sub: 'purchase_sales',
     text: "商品 800,000円 を売り上げ、代金のうち 300,000円 は約束手形を受け取り、残額は掛けとした。",
     correctEntries: { debit: [{ accountName: "受取手形", amount: 300000 }, { accountName: "売掛金", amount: 500000 }], credit: [{ accountName: "売上", amount: 800000 }] },
     choices: ["売上", "受取手形", "売掛金", "現金", "支払手形"],
-    explanation: "手形と掛けの複合仕訳です。"
+    explanation: "手形と掛けの複合仕訳です。",
+    mutate: (q) => {
+      const total = Randomizer.getAmount(800000, 0.2, 10000);
+      const note = Randomizer.getAmount(300000, 0.2, 10000);
+      const credit = total - note;
+      q.text = `商品 ${Randomizer.fmt(total)}円 を売り上げ、代金のうち ${Randomizer.fmt(note)}円 は約束手形を受け取り、残額は掛けとした。`;
+      q.correctEntries = { 
+        debit: [{ accountName: "受取手形", amount: note }, { accountName: "売掛金", amount: credit }], 
+        credit: [{ accountName: "売上", amount: total }] 
+      };
+      return q;
+    }
   },
   {
     id: '206', major: 'merchandise', sub: 'purchase_sales',
     text: "掛けで売り上げた商品 50,000円 が品違いのため返品され、同額の売掛金と相殺した。",
     correctEntries: { debit: [{ accountName: "売上", amount: 50000 }], credit: [{ accountName: "売掛金", amount: 50000 }] },
     choices: ["売上", "売掛金", "仕入", "買掛金", "現金"],
-    explanation: "売上戻り（返品）は、売上時の逆仕訳を行います。"
+    explanation: "売上戻り（返品）は、売上時の逆仕訳を行います。",
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(50000, 0.5, 1000);
+      q.text = `掛けで売り上げた商品 ${Randomizer.fmt(amt)}円 が品違いのため返品され、同額の売掛金と相殺した。`;
+      q.correctEntries = { debit: [{ accountName: "売上", amount: amt }], credit: [{ accountName: "売掛金", amount: amt }] };
+      return q;
+    }
   },
 
   // Sub: Credit/Gift
@@ -382,38 +464,49 @@ const QUESTIONS = [
     text: "商品 60,000円 を売り上げ、代金は信販会社発行の商品券で受け取った。",
     correctEntries: { debit: [{ accountName: "受取商品券", amount: 60000 }], credit: [{ accountName: "売上", amount: 60000 }] },
     choices: ["受取商品券", "売上", "他店商品券", "現金", "売掛金"],
-    explanation: "信販会社系の商品券は「受取商品券」などで処理します。"
+    explanation: "信販会社系の商品券は「受取商品券」などで処理します。",
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(60000, 0.4, 1000);
+      q.text = `商品 ${Randomizer.fmt(amt)}円 を売り上げ、代金は信販会社発行の商品券で受け取った。`;
+      q.correctEntries = { debit: [{ accountName: "受取商品券", amount: amt }], credit: [{ accountName: "売上", amount: amt }] };
+      return q;
+    }
   },
   {
     id: '212', major: 'merchandise', sub: 'credit_gift',
     text: "商品 30,000円 を売り上げ、代金はクレジット払い（掛）とされた。",
     correctEntries: { debit: [{ accountName: "クレジット売掛金", amount: 30000 }], credit: [{ accountName: "売上", amount: 30000 }] },
     choices: ["クレジット売掛金", "売上", "売掛金", "現金", "支払手数料"],
-    explanation: "クレジット払いは通常の売掛金と区別して「クレジット売掛金」とします。"
+    explanation: "クレジット払いは通常の売掛金と区別して「クレジット売掛金」とします。",
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(30000, 0.4, 1000);
+      q.text = `商品 ${Randomizer.fmt(amt)}円 を売り上げ、代金はクレジット払い（掛）とされた。`;
+      q.correctEntries = { debit: [{ accountName: "クレジット売掛金", amount: amt }], credit: [{ accountName: "売上", amount: amt }] };
+      return q;
+    }
   },
   {
     id: '213_new', major: 'merchandise', sub: 'credit_gift',
     text: "商品 100,000円 を売り上げ、代金のうち 20,000円 はデパート商品券で受け取り、残額は掛けとした。",
-    correctEntries: { debit: [{ accountName: "受取商品券", amount: 20000 }, { accountName: "売掛金", amount: 80000 }], credit: [{ accountName: "売上", amount: 100000 }] },
+    correctEntries: {},
     choices: ["売上", "受取商品券", "売掛金", "他店商品券", "現金"],
     explanation: "商品券と掛売りの複合仕訳です。",
-    explanationSteps: [
-       {
-         highlight: "商品 100,000円 を売り上げ",
-         entries: [{ side: 'credit', account: '売上', amount: 100000 }],
-         comment: "売上総額を貸方に計上します。"
-       },
-       {
-         highlight: "20,000円 はデパート商品券",
-         entries: [{ side: 'debit', account: '受取商品券', amount: 20000 }],
-         comment: "受け取った商品券は資産（受取商品券）として借方へ。"
-       },
-       {
-         highlight: "残額は掛けとした",
-         entries: [{ side: 'debit', account: '売掛金', amount: 80000 }],
-         comment: "100,000 - 20,000 = 80,000円 を売掛金とします。"
-       }
-    ]
+    mutate: (q) => {
+      const total = Randomizer.getAmount(100000, 0.3, 1000);
+      const gift = Randomizer.getAmount(20000, 0.3, 1000);
+      const credit = total - gift;
+      q.text = `商品 ${Randomizer.fmt(total)}円 を売り上げ、代金のうち ${Randomizer.fmt(gift)}円 はデパート商品券で受け取り、残額は掛けとした。`;
+      q.correctEntries = { 
+        debit: [{ accountName: "受取商品券", amount: gift }, { accountName: "売掛金", amount: credit }], 
+        credit: [{ accountName: "売上", amount: total }] 
+      };
+      q.explanationSteps = [
+        { highlight: `商品 ${Randomizer.fmt(total)}円`, entries: [{ side: 'credit', account: '売上', amount: total }], comment: "売上総額を貸方に計上します。" },
+        { highlight: `デパート商品券`, entries: [{ side: 'debit', account: '受取商品券', amount: gift }], comment: "受け取った商品券は資産として借方へ。" },
+        { highlight: "残額は掛け", entries: [{ side: 'debit', account: '売掛金', amount: credit }], comment: `${Randomizer.fmt(total)} - ${Randomizer.fmt(gift)} = ${Randomizer.fmt(credit)}円 を売掛金とします。` }
+      ];
+      return q;
+    }
   },
   // Sub: Advance
   {
@@ -421,65 +514,92 @@ const QUESTIONS = [
     text: "商品 100,000円 の注文を受け、手付金として現金 20,000円 を受け取った。",
     correctEntries: { debit: [{ accountName: "現金", amount: 20000 }], credit: [{ accountName: "前受金", amount: 20000 }] },
     choices: ["現金", "前受金", "前払金", "売上", "売掛金"],
-    explanation: "商品の引き渡し前の入金は「前受金」（負債）です。"
+    explanation: "商品の引き渡し前の入金は「前受金」（負債）です。",
+    mutate: (q) => {
+      // Amount depends on order size but only the advance matters for the entry
+      const order = Randomizer.getAmount(100000, 0.2, 1000);
+      const advance = Randomizer.getAmount(20000, 0.3, 1000);
+      q.text = `商品 ${Randomizer.fmt(order)}円 の注文を受け、手付金として現金 ${Randomizer.fmt(advance)}円 を受け取った。`;
+      q.correctEntries = { debit: [{ accountName: "現金", amount: advance }], credit: [{ accountName: "前受金", amount: advance }] };
+      return q;
+    }
   },
   {
     id: '222', major: 'merchandise', sub: 'advance',
     text: "商品 50,000円 を注文し、手付金 10,000円 を現金で支払った。",
     correctEntries: { debit: [{ accountName: "前払金", amount: 10000 }], credit: [{ accountName: "現金", amount: 10000 }] },
     choices: ["前払金", "現金", "前受金", "仕入", "買掛金"],
-    explanation: "商品の受け取り前の支払いは「前払金」（資産）です。"
+    explanation: "商品の受け取り前の支払いは「前払金」（資産）です。",
+    mutate: (q) => {
+      const order = Randomizer.getAmount(50000, 0.3, 1000);
+      const advance = Randomizer.getAmount(10000, 0.3, 1000);
+      q.text = `商品 ${Randomizer.fmt(order)}円 を注文し、手付金 ${Randomizer.fmt(advance)}円 を現金で支払った。`;
+      q.correctEntries = { debit: [{ accountName: "前払金", amount: advance }], credit: [{ accountName: "現金", amount: advance }] };
+      return q;
+    }
   },
   {
     id: '223', major: 'merchandise', sub: 'advance',
     text: "注文していた商品 200,000円 を受け取った。代金は内金 50,000円 を差し引き、残額を掛けとした。",
-    correctEntries: { debit: [{ accountName: "仕入", amount: 200000 }], credit: [{ accountName: "前払金", amount: 50000 }, { accountName: "買掛金", amount: 150000 }] },
+    correctEntries: {},
     choices: ["仕入", "前払金", "買掛金", "現金", "前受金"],
-    explanation: "商品到着時に「前払金」を取り崩し、残額を支払います。"
+    explanation: "商品到着時に「前払金」を取り崩し、残額を支払います。",
+    mutate: (q) => {
+      const total = Randomizer.getAmount(200000, 0.2, 1000);
+      const advance = Randomizer.getAmount(50000, 0.2, 1000);
+      const credit = total - advance;
+      q.text = `注文していた商品 ${Randomizer.fmt(total)}円 を受け取った。代金は内金 ${Randomizer.fmt(advance)}円 を差し引き、残額を掛けとした。`;
+      q.correctEntries = { 
+        debit: [{ accountName: "仕入", amount: total }], 
+        credit: [{ accountName: "前払金", amount: advance }, { accountName: "買掛金", amount: credit }] 
+      };
+      return q;
+    }
   },
 
   // Sub: Shipping
   {
     id: '231', major: 'merchandise', sub: 'shipping',
     text: "商品 100,000円 を仕入れ、代金は掛けとした。なお、引取運賃 2,000円 を現金で支払った。",
-    correctEntries: { 
-      debit: [{ accountName: "仕入", amount: 102000 }], 
-      credit: [{ accountName: "買掛金", amount: 100000 }, { accountName: "現金", amount: 2000 }] 
-    },
+    correctEntries: {},
     choices: ["仕入", "現金", "発送費", "買掛金", "支払手数料"],
-    explanation: "【付随費用（仕入）】仕入諸掛り（引取運賃など）は、仕入原価（仕入勘定）に含めます。\n仕入原価：商品 100,000 ＋ 運賃 2,000 ＝ 102,000円",
-    explanationSteps: [
-      {
-        highlight: "引取運賃 2,000円 を現金で支払った",
-        entries: [{ side: 'credit', account: '現金', amount: 2000 }],
-        comment: "まず、運賃の現金支払いを記録します。"
-      },
-      {
-        highlight: "代金は掛けとした",
-        entries: [{ side: 'credit', account: '買掛金', amount: 100000 }],
-        comment: "商品代金は後払いなので「買掛金」とします。"
-      },
-      {
-        highlight: "商品 100,000円 を仕入れ",
-        entries: [{ side: 'debit', account: '仕入', amount: '???' }],
-        comment: "借方の「仕入」には、商品代金に運賃（付随費用）を足した金額が入ります。"
-      },
-      {
-        highlight: "引取運賃 2,000円",
-        entries: [{ side: 'debit', account: '仕入', amount: 102000 }],
-        comment: "100,000円 + 2,000円 = 102,000円 が取得原価となります。"
-      }
-    ]
+    explanation: "", // Built dynamically
+    explanationSteps: [],
+    mutate: (q) => {
+      const goods = Randomizer.getAmount(100000, 0.2, 1000);
+      const fee = Randomizer.getAmount(2000, 0.3, 100);
+      const total = goods + fee;
+      
+      q.text = `商品 ${Randomizer.fmt(goods)}円 を仕入れ、代金は掛けとした。なお、引取運賃 ${Randomizer.fmt(fee)}円 を現金で支払った。`;
+      q.explanation = `【付随費用（仕入）】仕入諸掛りは仕入原価に含めます。\n仕入原価：商品 ${Randomizer.fmt(goods)} ＋ 運賃 ${Randomizer.fmt(fee)} ＝ ${Randomizer.fmt(total)}円`;
+      q.correctEntries = { 
+        debit: [{ accountName: "仕入", amount: total }], 
+        credit: [{ accountName: "買掛金", amount: goods }, { accountName: "現金", amount: fee }] 
+      };
+      q.explanationSteps = [
+        { highlight: `引取運賃 ${Randomizer.fmt(fee)}円`, entries: [{ side: 'credit', account: '現金', amount: fee }], comment: "運賃の支払いを記録します。" },
+        { highlight: "代金は掛け", entries: [{ side: 'credit', account: '買掛金', amount: goods }], comment: "商品代金は買掛金です。" },
+        { highlight: "商品 ... を仕入れ", entries: [{ side: 'debit', account: '仕入', amount: total }], comment: `${Randomizer.fmt(goods)} + ${Randomizer.fmt(fee)} = ${Randomizer.fmt(total)}円 が仕入原価です。` }
+      ];
+      return q;
+    }
   },
   {
     id: '232', major: 'merchandise', sub: 'shipping',
     text: "商品 200,000円 を売り上げ、代金は掛けとした。なお、発送費 1,500円（当社負担）を現金で支払った。",
-    correctEntries: { 
-      debit: [{ accountName: "売掛金", amount: 200000 }, { accountName: "発送費", amount: 1500 }], 
-      credit: [{ accountName: "売上", amount: 200000 }, { accountName: "現金", amount: 1500 }] 
-    },
+    correctEntries: {},
     choices: ["売掛金", "発送費", "売上", "現金", "仕入"],
-    explanation: "【付随費用（売上）】商品代金は「売上」、当社負担の諸掛りは「発送費」（費用）で処理します。"
+    explanation: "【付随費用（売上）】商品代金は「売上」、当社負担の諸掛りは「発送費」（費用）で処理します。",
+    mutate: (q) => {
+      const goods = Randomizer.getAmount(200000, 0.2, 1000);
+      const fee = Randomizer.getAmount(1500, 0.3, 100);
+      q.text = `商品 ${Randomizer.fmt(goods)}円 を売り上げ、代金は掛けとした。なお、発送費 ${Randomizer.fmt(fee)}円（当社負担）を現金で支払った。`;
+      q.correctEntries = { 
+        debit: [{ accountName: "売掛金", amount: goods }, { accountName: "発送費", amount: fee }], 
+        credit: [{ accountName: "売上", amount: goods }, { accountName: "現金", amount: fee }] 
+      };
+      return q;
+    }
   },
 
   // --- Notes ---
@@ -489,14 +609,26 @@ const QUESTIONS = [
     text: "商品 200,000円 を仕入れ、代金は約束手形を振り出して支払った。",
     correctEntries: { debit: [{ accountName: "仕入", amount: 200000 }], credit: [{ accountName: "支払手形", amount: 200000 }] },
     choices: ["仕入", "支払手形", "受取手形", "買掛金", "現金"],
-    explanation: "手形の振出は「支払手形」（負債）の増加です。"
+    explanation: "手形の振出は「支払手形」（負債）の増加です。",
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(200000, 0.3, 1000);
+      q.text = `商品 ${Randomizer.fmt(amt)}円 を仕入れ、代金は約束手形を振り出して支払った。`;
+      q.correctEntries = { debit: [{ accountName: "仕入", amount: amt }], credit: [{ accountName: "支払手形", amount: amt }] };
+      return q;
+    }
   },
   {
     id: '302', major: 'notes', sub: 'promissory',
     text: "商品 350,000円 を売り渡し、代金は同店振り出しの約束手形で受け取った。",
     correctEntries: { debit: [{ accountName: "受取手形", amount: 350000 }], credit: [{ accountName: "売上", amount: 350000 }] },
     choices: ["受取手形", "売上", "支払手形", "売掛金", "現金"],
-    explanation: "手形の受取は「受取手形」（資産）の増加です。"
+    explanation: "手形の受取は「受取手形」（資産）の増加です。",
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(350000, 0.3, 1000);
+      q.text = `商品 ${Randomizer.fmt(amt)}円 を売り渡し、代金は同店振り出しの約束手形で受け取った。`;
+      q.correctEntries = { debit: [{ accountName: "受取手形", amount: amt }], credit: [{ accountName: "売上", amount: amt }] };
+      return q;
+    }
   },
   {
     id: '303_new', major: 'notes', sub: 'promissory',
@@ -504,55 +636,54 @@ const QUESTIONS = [
     correctEntries: { debit: [{ accountName: "買掛金", amount: 120000 }], credit: [{ accountName: "支払手形", amount: 120000 }] },
     choices: ["買掛金", "支払手形", "当座預金", "受取手形", "未払金"],
     explanation: "買掛金という債務を消滅させ、手形債務に変更する仕訳です。",
-    explanationSteps: [
-      {
-        highlight: "買掛金 120,000円 の支払い",
-        entries: [{ side: 'debit', account: '買掛金', amount: 120000 }],
-        comment: "買掛金を支払うため、借方で負債を減少させます。"
-      },
-      {
-        highlight: "約束手形を振り出した",
-        entries: [{ side: 'credit', account: '支払手形', amount: 120000 }],
-        comment: "代わりに手形代金を支払う義務（支払手形）が発生します。"
-      }
-    ]
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(120000, 0.3, 1000);
+      const sAmt = Randomizer.fmt(amt);
+      q.text = `買掛金 ${sAmt}円 の支払いのため、約束手形を振り出した。`;
+      q.correctEntries = { debit: [{ accountName: "買掛金", amount: amt }], credit: [{ accountName: "支払手形", amount: amt }] };
+      q.explanationSteps = [
+        { highlight: `買掛金 ${sAmt}円`, entries: [{ side: 'debit', account: '買掛金', amount: amt }], comment: "買掛金を減少させます。" },
+        { highlight: "約束手形を振り出した", entries: [{ side: 'credit', account: '支払手形', amount: amt }], comment: "手形債務が発生します。" }
+      ];
+      return q;
+    }
   },
   // Sub: Loan
   {
     id: '311', major: 'notes', sub: 'loan',
     text: "銀行から 1,000,000円 を借り入れ、利息を差し引かれた残額が当座預金に振り込まれた（利息 1万円）。",
-    correctEntries: { debit: [{ accountName: "当座預金", amount: 990000 }, { accountName: "支払利息", amount: 10000 }], credit: [{ accountName: "借入金", amount: 1000000 }] },
+    correctEntries: {},
     choices: ["当座預金", "支払利息", "借入金", "現金", "手形借入金"],
     explanation: "借入額全額を貸方に、利息は「支払利息」、手取額を借方に記入します。",
-    explanationSteps: [
-      {
-        highlight: "銀行から 1,000,000円 を借り入れ",
-        entries: [{ side: 'credit', account: '借入金', amount: 1000000 }],
-        comment: "返済義務があるので、負債の「借入金」を貸方に記録します。"
-      },
-      {
-        highlight: "利息 1万円",
-        entries: [{ side: 'debit', account: '支払利息', amount: 10000 }],
-        comment: "差し引かれた利息は「支払利息」（費用）として借方に計上します。"
-      },
-      {
-        highlight: "利息を差し引かれた残額が当座預金に",
-        entries: [{ side: 'debit', account: '当座預金', amount: '???' }],
-        comment: "手取り額を計算します。100万円から1万円を引きます。"
-      },
-      {
-        highlight: "利息を差し引かれた残額",
-        entries: [{ side: 'debit', account: '当座預金', amount: 990000 }],
-        comment: "1,000,000 - 10,000 = 990,000円 が当座預金に入ります。"
-      }
-    ]
+    mutate: (q) => {
+      const loan = Randomizer.getAmount(1000000, 0.2, 10000);
+      const interest = Randomizer.getAmount(10000, 0.2, 100);
+      const deposit = loan - interest;
+      q.text = `銀行から ${Randomizer.fmt(loan)}円 を借り入れ、利息を差し引かれた残額が当座預金に振り込まれた（利息 ${Randomizer.fmt(interest)}円）。`;
+      q.correctEntries = { 
+        debit: [{ accountName: "当座預金", amount: deposit }, { accountName: "支払利息", amount: interest }], 
+        credit: [{ accountName: "借入金", amount: loan }] 
+      };
+      q.explanationSteps = [
+        { highlight: `銀行から ${Randomizer.fmt(loan)}円`, entries: [{ side: 'credit', account: '借入金', amount: loan }], comment: "借入金（負債）を計上します。" },
+        { highlight: `利息 ${Randomizer.fmt(interest)}円`, entries: [{ side: 'debit', account: '支払利息', amount: interest }], comment: "利息は費用として処理します。" },
+        { highlight: "利息を差し引かれた残額", entries: [{ side: 'debit', account: '当座預金', amount: deposit }], comment: `${Randomizer.fmt(loan)} - ${Randomizer.fmt(interest)} = ${Randomizer.fmt(deposit)}円 が手取りです。` }
+      ];
+      return q;
+    }
   },
   {
     id: '312', major: 'notes', sub: 'loan',
     text: "取引先に現金 100,000円 を貸し付け、借用証書を受け取った。",
     correctEntries: { debit: [{ accountName: "貸付金", amount: 100000 }], credit: [{ accountName: "現金", amount: 100000 }] },
     choices: ["貸付金", "現金", "借入金", "受取手形", "手形貸付金"],
-    explanation: "現金を貸し付けた場合は「貸付金」（資産）です。"
+    explanation: "現金を貸し付けた場合は「貸付金」（資産）です。",
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(100000, 0.4, 1000);
+      q.text = `取引先に現金 ${Randomizer.fmt(amt)}円 を貸し付け、借用証書を受け取った。`;
+      q.correctEntries = { debit: [{ accountName: "貸付金", amount: amt }], credit: [{ accountName: "現金", amount: amt }] };
+      return q;
+    }
   },
 
   // --- Assets & Expenses ---
@@ -562,43 +693,49 @@ const QUESTIONS = [
     text: "営業用のパソコン 150,000円 を購入し、代金は翌月末払いとした。",
     correctEntries: { debit: [{ accountName: "備品", amount: 150000 }], credit: [{ accountName: "未払金", amount: 150000 }] },
     choices: ["備品", "未払金", "買掛金", "消耗品費", "現金"],
-    explanation: "商品以外の物品購入の未払いは「未払金」です。"
+    explanation: "商品以外の物品購入の未払いは「未払金」です。",
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(150000, 0.3, 1000);
+      q.text = `営業用のパソコン ${Randomizer.fmt(amt)}円 を購入し、代金は翌月末払いとした。`;
+      q.correctEntries = { debit: [{ accountName: "備品", amount: amt }], credit: [{ accountName: "未払金", amount: amt }] };
+      return q;
+    }
   },
   {
     id: '402', major: 'assets_expenses', sub: 'fixed_assets',
     text: "店舗用の土地を 5,000,000円 で購入し、代金は小切手を振り出して支払った。",
     correctEntries: { debit: [{ accountName: "土地", amount: 5000000 }], credit: [{ accountName: "当座預金", amount: 5000000 }] },
     choices: ["土地", "当座預金", "建物", "現金", "未払金"],
-    explanation: "土地は固定資産です。小切手振出は当座預金の減少です。"
+    explanation: "土地は固定資産です。小切手振出は当座預金の減少です。",
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(5000000, 0.2, 100000);
+      q.text = `店舗用の土地を ${Randomizer.fmt(amt)}円 で購入し、代金は小切手を振り出して支払った。`;
+      q.correctEntries = { debit: [{ accountName: "土地", amount: amt }], credit: [{ accountName: "当座預金", amount: amt }] };
+      return q;
+    }
   },
   {
     id: '403_new', major: 'assets_expenses', sub: 'fixed_assets',
     text: "営業用のトラックを 1,200,000円 で購入し、代金のうち 200,000円 は現金で支払い、残額は月末払いとした。",
-    correctEntries: { debit: [{ accountName: "車両運搬具", amount: 1200000 }], credit: [{ accountName: "現金", amount: 200000 }, { accountName: "未払金", amount: 1000000 }] },
+    correctEntries: {},
     choices: ["車両運搬具", "現金", "未払金", "買掛金", "備品"],
     explanation: "車は「車両運搬具」勘定を使用します。商品ではないので残額は「未払金」です。",
-    explanationSteps: [
-      {
-        highlight: "営業用のトラックを 1,200,000円 で購入",
-        entries: [{ side: 'debit', account: '車両運搬具', amount: 1200000 }],
-        comment: "固定資産（車両運搬具）を取得したので、借方に全額を計上します。"
-      },
-      {
-        highlight: "200,000円 は現金で支払い",
-        entries: [{ side: 'credit', account: '現金', amount: 200000 }],
-        comment: "頭金として払った現金を貸方で減らします。"
-      },
-      {
-        highlight: "残額は月末払いとした",
-        entries: [{ side: 'credit', account: '未払金', amount: '???' }],
-        comment: "残りの100万円は後払いです。商品売買ではないので「買掛金」ではなく「未払金」を使います。"
-      },
-      {
-        highlight: "残額",
-        entries: [{ side: 'credit', account: '未払金', amount: 1000000 }],
-        comment: "1,200,000 - 200,000 = 1,000,000円 です。"
-      }
-    ]
+    mutate: (q) => {
+      const total = Randomizer.getAmount(1200000, 0.2, 10000);
+      const cash = Randomizer.getAmount(200000, 0.2, 10000);
+      const credit = total - cash;
+      q.text = `営業用のトラックを ${Randomizer.fmt(total)}円 で購入し、代金のうち ${Randomizer.fmt(cash)}円 は現金で支払い、残額は月末払いとした。`;
+      q.correctEntries = { 
+        debit: [{ accountName: "車両運搬具", amount: total }], 
+        credit: [{ accountName: "現金", amount: cash }, { accountName: "未払金", amount: credit }] 
+      };
+      q.explanationSteps = [
+        { highlight: `トラックを ${Randomizer.fmt(total)}円`, entries: [{ side: 'debit', account: '車両運搬具', amount: total }], comment: "車両運搬具を計上します。" },
+        { highlight: `現金で支払い`, entries: [{ side: 'credit', account: '現金', amount: cash }], comment: "頭金を支払いました。" },
+        { highlight: "残額", entries: [{ side: 'credit', account: '未払金', amount: credit }], comment: `${Randomizer.fmt(total)} - ${Randomizer.fmt(cash)} = ${Randomizer.fmt(credit)}円 が未払金です。` }
+      ];
+      return q;
+    }
   },
   // Sub: Expenses/Taxes
   {
@@ -606,43 +743,49 @@ const QUESTIONS = [
     text: "固定資産税 50,000円 を現金で納付した。",
     correctEntries: { debit: [{ accountName: "租税公課", amount: 50000 }], credit: [{ accountName: "現金", amount: 50000 }] },
     choices: ["租税公課", "現金", "雑費", "消耗品費", "未払金"],
-    explanation: "固定資産税や印紙税などは「租税公課」（費用）で処理します。"
+    explanation: "固定資産税や印紙税などは「租税公課」（費用）で処理します。",
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(50000, 0.4, 1000);
+      q.text = `固定資産税 ${Randomizer.fmt(amt)}円 を現金で納付した。`;
+      q.correctEntries = { debit: [{ accountName: "租税公課", amount: amt }], credit: [{ accountName: "現金", amount: amt }] };
+      return q;
+    }
   },
   {
     id: '412', major: 'assets_expenses', sub: 'expenses_taxes',
     text: "従業員の給料 200,000円 を支払い、所得税の源泉徴収分 5,000円 を差し引いた残額を現金で手渡した。",
-    correctEntries: { debit: [{ accountName: "給料", amount: 200000 }], credit: [{ accountName: "預り金", amount: 5000 }, { accountName: "現金", amount: 195000 }] },
+    correctEntries: {},
     choices: ["給料", "預り金", "現金", "立替金", "法定福利費"],
     explanation: "給料から天引きした税金などは、会社が一時的に預かるため「預り金」（負債）とします。",
-    explanationSteps: [
-      {
-        highlight: "給料 200,000円 を支払い",
-        entries: [{ side: 'debit', account: '給料', amount: 200000 }],
-        comment: "給料の総額を費用の発生として借方に計上します。"
-      },
-      {
-        highlight: "所得税の源泉徴収分 5,000円",
-        entries: [{ side: 'credit', account: '預り金', amount: 5000 }],
-        comment: "本人に渡さず会社が預かる分は「預り金」（負債）です。"
-      },
-      {
-        highlight: "残額を現金で手渡した",
-        entries: [{ side: 'credit', account: '現金', amount: '???' }],
-        comment: "手取り額を計算して現金を減らします。"
-      },
-      {
-        highlight: "残額",
-        entries: [{ side: 'credit', account: '現金', amount: 195000 }],
-        comment: "200,000 - 5,000 = 195,000円 です。"
-      }
-    ]
+    mutate: (q) => {
+      const salary = Randomizer.getAmount(200000, 0.2, 1000);
+      const tax = Randomizer.getAmount(5000, 0.2, 100);
+      const cash = salary - tax;
+      q.text = `従業員の給料 ${Randomizer.fmt(salary)}円 を支払い、所得税の源泉徴収分 ${Randomizer.fmt(tax)}円 を差し引いた残額を現金で手渡した。`;
+      q.correctEntries = { 
+        debit: [{ accountName: "給料", amount: salary }], 
+        credit: [{ accountName: "預り金", amount: tax }, { accountName: "現金", amount: cash }] 
+      };
+      q.explanationSteps = [
+        { highlight: `給料 ${Randomizer.fmt(salary)}円`, entries: [{ side: 'debit', account: '給料', amount: salary }], comment: "給料の総額を借方に計上します。" },
+        { highlight: `源泉徴収分 ${Randomizer.fmt(tax)}円`, entries: [{ side: 'credit', account: '預り金', amount: tax }], comment: "預り金を貸方に計上します。" },
+        { highlight: "残額", entries: [{ side: 'credit', account: '現金', amount: cash }], comment: `${Randomizer.fmt(salary)} - ${Randomizer.fmt(tax)} = ${Randomizer.fmt(cash)}円 が手取りです。` }
+      ];
+      return q;
+    }
   },
   {
     id: '413', major: 'assets_expenses', sub: 'expenses_taxes',
     text: "事業主が個人の生命保険料 20,000円 を店の現金で支払った。",
     correctEntries: { debit: [{ accountName: "引出金", amount: 20000 }], credit: [{ accountName: "現金", amount: 20000 }] },
     choices: ["引出金", "現金", "保険料", "資本金", "雑費"],
-    explanation: "事業主個人の支出は「引出金」（または資本金の減少）で処理します。経費にはなりません。"
+    explanation: "事業主個人の支出は「引出金」（または資本金の減少）で処理します。経費にはなりません。",
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(20000, 0.3, 1000);
+      q.text = `事業主が個人の生命保険料 ${Randomizer.fmt(amt)}円 を店の現金で支払った。`;
+      q.correctEntries = { debit: [{ accountName: "引出金", amount: amt }], credit: [{ accountName: "現金", amount: amt }] };
+      return q;
+    }
   },
 
   // --- Closing ---
@@ -650,104 +793,100 @@ const QUESTIONS = [
   {
     id: '501', major: 'closing', sub: 'bad_debts',
     text: "決算：売掛金残高 500,000円 に対し 2% の貸倒れを見積もる。残高は 4,000円 である（差額補充法）。",
-    correctEntries: { debit: [{ accountName: "貸倒引当金繰入", amount: 6000 }], credit: [{ accountName: "貸倒引当金", amount: 6000 }] },
+    correctEntries: {},
     choices: ["貸倒引当金繰入", "貸倒引当金", "貸倒損失", "売掛金", "現金"],
-    explanation: "目標額 10,000 - 残高 4,000 = 6,000円 を繰り入れます。",
-    explanationSteps: [
-      {
-        highlight: "2% の貸倒れを見積もる",
-        entries: [{ side: 'credit', account: '貸倒引当金', amount: '???' }],
-        comment: "将来の損失に備えるため、貸倒引当金（資産のマイナス項目）を設定（貸方）します。まずは目標額を計算しましょう。"
-      },
-      {
-        highlight: "売掛金残高 500,000円 に対し 2%",
-        entries: [], // Just comment
-        comment: "500,000 × 0.02 = 10,000円 が目標の積立額です。"
-      },
-      {
-        highlight: "残高は 4,000円 である",
-        entries: [{ side: 'credit', account: '貸倒引当金', amount: 6000 }],
-        comment: "既に4,000円あるので、足りない分（10,000 - 4,000 = 6,000円）だけ補充します。"
-      },
-      {
-        highlight: "差額補充法",
-        entries: [{ side: 'debit', account: '貸倒引当金繰入', amount: 6000 }],
-        comment: "補充する額を「貸倒引当金繰入」（費用）として借方に計上します。"
-      }
-    ]
+    explanation: "", 
+    mutate: (q) => {
+      const ar = Randomizer.getAmount(500000, 0.2, 10000);
+      const rate = 0.02;
+      const target = ar * rate; // e.g., 10,000
+      const current = Math.floor(target * 0.4); // e.g. 4,000 (exists)
+      const provision = target - current; // 6,000
+      
+      q.text = `決算：売掛金残高 ${Randomizer.fmt(ar)}円 に対し 2% の貸倒れを見積もる。残高は ${Randomizer.fmt(current)}円 である（差額補充法）。`;
+      q.explanation = `目標額 ${Randomizer.fmt(target)} - 残高 ${Randomizer.fmt(current)} = ${Randomizer.fmt(provision)}円 を繰り入れます。`;
+      q.correctEntries = { debit: [{ accountName: "貸倒引当金繰入", amount: provision }], credit: [{ accountName: "貸倒引当金", amount: provision }] };
+      
+      q.explanationSteps = [
+        { highlight: "2% の貸倒れを見積もる", entries: [{ side: 'credit', account: '貸倒引当金', amount: '???' }], comment: "まずは目標額を計算しましょう。" },
+        { highlight: `売掛金残高 ${Randomizer.fmt(ar)}円`, entries: [], comment: `${Randomizer.fmt(ar)} × 0.02 = ${Randomizer.fmt(target)}円 が目標です。` },
+        { highlight: `残高は ${Randomizer.fmt(current)}円`, entries: [{ side: 'credit', account: '貸倒引当金', amount: provision }], comment: `足りない分（${Randomizer.fmt(target)} - ${Randomizer.fmt(current)} = ${Randomizer.fmt(provision)}円）を補充します。` },
+        { highlight: "差額補充法", entries: [{ side: 'debit', account: '貸倒引当金繰入', amount: provision }], comment: "補充額を費用として計上します。" }
+      ];
+      return q;
+    }
   },
   {
     id: '502_new', major: 'closing', sub: 'bad_debts',
     text: "決算：受取手形残高 200,000円 と売掛金残高 300,000円 の合計に対し 3% の貸倒れを見積もる。なお、貸倒引当金の残高はない。",
-    correctEntries: { debit: [{ accountName: "貸倒引当金繰入", amount: 15000 }], credit: [{ accountName: "貸倒引当金", amount: 15000 }] },
+    correctEntries: {},
     choices: ["貸倒引当金繰入", "貸倒引当金", "売掛金", "受取手形", "現金"],
     explanation: "売上債権の合計に対して計算します。残高がないため全額を繰り入れます。",
-    explanationSteps: [
-      {
-        highlight: "受取手形残高 200,000円 と売掛金残高 300,000円 の合計",
-        entries: [],
-        comment: "対象となる債権の合計は、200,000 + 300,000 = 500,000円です。"
-      },
-      {
-        highlight: "3% の貸倒れを見積もる",
-        entries: [{ side: 'debit', account: '貸倒引当金繰入', amount: '???' }],
-        comment: "500,000 × 0.03 = 15,000円 が見積額となります。"
-      },
-      {
-        highlight: "貸倒引当金の残高はない",
-        entries: [{ side: 'debit', account: '貸倒引当金繰入', amount: 15000 }, { side: 'credit', account: '貸倒引当金', amount: 15000 }],
-        comment: "以前の残高がないため、見積額の15,000円全額を新たに設定します。"
-      }
-    ]
+    mutate: (q) => {
+      const note = Randomizer.getAmount(200000, 0.2, 10000);
+      const ar = Randomizer.getAmount(300000, 0.2, 10000);
+      const total = note + ar;
+      const rate = 0.03;
+      const provision = total * rate;
+
+      q.text = `決算：受取手形残高 ${Randomizer.fmt(note)}円 と売掛金残高 ${Randomizer.fmt(ar)}円 の合計に対し 3% の貸倒れを見積もる。なお、貸倒引当金の残高はない。`;
+      q.correctEntries = { debit: [{ accountName: "貸倒引当金繰入", amount: provision }], credit: [{ accountName: "貸倒引当金", amount: provision }] };
+      q.explanationSteps = [
+        { highlight: "合計", entries: [], comment: `対象は ${Randomizer.fmt(note)} + ${Randomizer.fmt(ar)} = ${Randomizer.fmt(total)}円です。` },
+        { highlight: "3% の貸倒れ", entries: [{ side: 'debit', account: '貸倒引当金繰入', amount: provision }], comment: `${Randomizer.fmt(total)} × 0.03 = ${Randomizer.fmt(provision)}円 が見積額です。` },
+        { highlight: "残高はない", entries: [{ side: 'credit', account: '貸倒引当金', amount: provision }], comment: "全額を新たに設定します。" }
+      ];
+      return q;
+    }
   },
   // Sub: Depreciation
   {
     id: '511', major: 'closing', sub: 'depreciation',
     text: "建物（取得原価 3,000,000円）の減価償却を行う。耐用年数30年、残存価額ゼロ、定額法、直接法。",
-    correctEntries: { debit: [{ accountName: "減価償却費", amount: 100000 }], credit: [{ accountName: "建物", amount: 100000 }] },
+    correctEntries: {},
     choices: ["減価償却費", "建物", "減価償却累計額", "備品", "損益"],
-    explanation: "3,000,000 ÷ 30 = 100,000。直接法なので貸方は資産科目（建物）を減らします。",
-    explanationSteps: [
-      {
-        highlight: "減価償却を行う",
-        entries: [{ side: 'debit', account: '減価償却費', amount: '???' }],
-        comment: "決算において、固定資産の価値の減少分を「減価償却費」（費用）として計上します。"
-      },
-      {
-        highlight: "取得原価 3,000,000円 ... 耐用年数30年 ... 定額法",
-        entries: [{ side: 'debit', account: '減価償却費', amount: 100000 }],
-        comment: "金額計算: 3,000,000円 ÷ 30年 = 100,000円"
-      },
-      {
-        highlight: "直接法",
-        entries: [{ side: 'credit', account: '建物', amount: 100000 }],
-        comment: "直接法では、建物の勘定（資産）を貸方で直接減らします。"
-      }
-    ]
+    explanation: "",
+    mutate: (q) => {
+      // Must be divisible by 30 to stay clean
+      const raw = Randomizer.getAmount(3000000, 0.2, 10000);
+      const cost = Math.round(raw / 30000) * 30000; // Force divisible by 30
+      const life = 30;
+      const expense = cost / life;
+
+      q.text = `建物（取得原価 ${Randomizer.fmt(cost)}円）の減価償却を行う。耐用年数30年、残存価額ゼロ、定額法、直接法。`;
+      q.explanation = `${Randomizer.fmt(cost)} ÷ 30 = ${Randomizer.fmt(expense)}。直接法なので貸方は資産科目（建物）を減らします。`;
+      q.correctEntries = { debit: [{ accountName: "減価償却費", amount: expense }], credit: [{ accountName: "建物", amount: expense }] };
+      q.explanationSteps = [
+        { highlight: "減価償却を行う", entries: [{ side: 'debit', account: '減価償却費', amount: '???' }], comment: "費用の計上です。" },
+        { highlight: `取得原価 ${Randomizer.fmt(cost)}円 ... 耐用年数30年`, entries: [{ side: 'debit', account: '減価償却費', amount: expense }], comment: `${Randomizer.fmt(cost)} ÷ 30 = ${Randomizer.fmt(expense)}円` },
+        { highlight: "直接法", entries: [{ side: 'credit', account: '建物', amount: expense }], comment: "建物を直接減らします。" }
+      ];
+      return q;
+    }
   },
   {
     id: '512_new', major: 'closing', sub: 'depreciation',
     text: "備品（取得原価 600,000円）の減価償却を行う。耐用年数5年、残存価額ゼロ、定額法、直接法。",
-    correctEntries: { debit: [{ accountName: "減価償却費", amount: 120000 }], credit: [{ accountName: "備品", amount: 120000 }] },
+    correctEntries: {},
     choices: ["減価償却費", "備品", "減価償却累計額", "建物", "損益"],
-    explanation: "600,000 ÷ 5 = 120,000。備品の価値を直接減らします。",
-    explanationSteps: [
-      {
-        highlight: "備品（取得原価 600,000円）の減価償却",
-        entries: [{ side: 'debit', account: '減価償却費', amount: '???' }],
-        comment: "備品の価値が1年分減少しました。"
-      },
-      {
-        highlight: "耐用年数5年 ... 定額法",
-        entries: [{ side: 'debit', account: '減価償却費', amount: 120000 }],
-        comment: "計算: 600,000円 ÷ 5年 = 120,000円"
-      },
-      {
-        highlight: "直接法",
-        entries: [{ side: 'credit', account: '備品', amount: 120000 }],
-        comment: "貸方で「備品」を直接減額します。"
-      }
-    ]
+    explanation: "",
+    mutate: (q) => {
+      // Must be divisible by 5
+      const raw = Randomizer.getAmount(600000, 0.2, 10000);
+      const cost = Math.round(raw / 5000) * 5000; 
+      const life = 5;
+      const expense = cost / life;
+
+      q.text = `備品（取得原価 ${Randomizer.fmt(cost)}円）の減価償却を行う。耐用年数5年、残存価額ゼロ、定額法、直接法。`;
+      q.explanation = `${Randomizer.fmt(cost)} ÷ 5 = ${Randomizer.fmt(expense)}。備品の価値を直接減らします。`;
+      q.correctEntries = { debit: [{ accountName: "減価償却費", amount: expense }], credit: [{ accountName: "備品", amount: expense }] };
+      q.explanationSteps = [
+        { highlight: `備品（取得原価 ${Randomizer.fmt(cost)}円）`, entries: [{ side: 'debit', account: '減価償却費', amount: '???' }], comment: "備品の価値が減少します。" },
+        { highlight: "耐用年数5年", entries: [{ side: 'debit', account: '減価償却費', amount: expense }], comment: `${Randomizer.fmt(cost)} ÷ 5 = ${Randomizer.fmt(expense)}円` },
+        { highlight: "直接法", entries: [{ side: 'credit', account: '備品', amount: expense }], comment: "貸方で備品を減額します。" }
+      ];
+      return q;
+    }
   },
   // Sub: Accruals
   {
@@ -756,30 +895,30 @@ const QUESTIONS = [
     correctEntries: { debit: [{ accountName: "消耗品", amount: 2000 }], credit: [{ accountName: "消耗品費", amount: 2000 }] },
     choices: ["消耗品", "消耗品費", "備品", "現金", "未払金"],
     explanation: "未使用分を資産（消耗品）に計上し、費用を取り消します。",
-    explanationSteps: [
-      {
-        highlight: "購入時に全額費用処理している",
-        entries: [],
-        comment: "買った時にすべて「消耗品費」にしていましたが、まだ使っていない分があります。"
-      },
-      {
-        highlight: "期末棚卸高は 2,000円",
-        entries: [{ side: 'debit', account: '消耗品', amount: 2000 }],
-        comment: "残っている分を「消耗品」（資産）として借方に計上します。"
-      },
-      {
-        highlight: "期末棚卸高は 2,000円",
-        entries: [{ side: 'credit', account: '消耗品費', amount: 2000 }],
-        comment: "その分だけ、以前計上した費用（消耗品費）を取り消すために貸方に記入します。"
-      }
-    ]
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(2000, 0.5, 100);
+      q.text = `消耗品の期末棚卸高は ${Randomizer.fmt(amt)}円 であった（購入時に全額費用処理している）。`;
+      q.correctEntries = { debit: [{ accountName: "消耗品", amount: amt }], credit: [{ accountName: "消耗品費", amount: amt }] };
+      q.explanationSteps = [
+        { highlight: "購入時に全額費用処理している", entries: [], comment: "まだ使っていない分があります。" },
+        { highlight: `期末棚卸高は ${Randomizer.fmt(amt)}円`, entries: [{ side: 'debit', account: '消耗品', amount: amt }], comment: "残りを資産計上します。" },
+        { highlight: `期末棚卸高は ${Randomizer.fmt(amt)}円`, entries: [{ side: 'credit', account: '消耗品費', amount: amt }], comment: "費用を取り消します。" }
+      ];
+      return q;
+    }
   },
   {
     id: '522', major: 'closing', sub: 'accruals',
     text: "家賃の未払分 50,000円 を計上する。",
     correctEntries: { debit: [{ accountName: "支払家賃", amount: 50000 }], credit: [{ accountName: "未払家賃", amount: 50000 }] },
     choices: ["支払家賃", "未払家賃", "前払家賃", "現金", "未払金"],
-    explanation: "当期の費用だが未払いのものは、費用を計上し、「未払〇〇」（負債）とします。"
+    explanation: "当期の費用だが未払いのものは、費用を計上し、「未払〇〇」（負債）とします。",
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(50000, 0.3, 1000);
+      q.text = `家賃の未払分 ${Randomizer.fmt(amt)}円 を計上する。`;
+      q.correctEntries = { debit: [{ accountName: "支払家賃", amount: amt }], credit: [{ accountName: "未払家賃", amount: amt }] };
+      return q;
+    }
   },
   {
     id: '523_new', major: 'closing', sub: 'accruals',
@@ -787,18 +926,16 @@ const QUESTIONS = [
     correctEntries: { debit: [{ accountName: "水道光熱費", amount: 15000 }], credit: [{ accountName: "未払金", amount: 15000 }] },
     choices: ["水道光熱費", "未払金", "未払費用", "現金", "当座預金"],
     explanation: "継続的なサービス契約に基づく未払費用ですが、3級では「未払金」または「未払費用」として処理されることがあります。ここでは一般的な未払金として扱います。",
-    explanationSteps: [
-      {
-        highlight: "水道光熱費 15,000円",
-        entries: [{ side: 'debit', account: '水道光熱費', amount: 15000 }],
-        comment: "当月に発生した費用なので借方に計上します。"
-      },
-      {
-        highlight: "未払いであり",
-        entries: [{ side: 'credit', account: '未払金', amount: 15000 }],
-        comment: "まだ支払っていないため、負債（未払金）として貸方に計上します。"
-      }
-    ]
+    mutate: (q) => {
+      const amt = Randomizer.getAmount(15000, 0.4, 1000);
+      q.text = `今月分の水道光熱費 ${Randomizer.fmt(amt)}円 が未払いであり、これを計上する。`;
+      q.correctEntries = { debit: [{ accountName: "水道光熱費", amount: amt }], credit: [{ accountName: "未払金", amount: amt }] };
+      q.explanationSteps = [
+        { highlight: `水道光熱費 ${Randomizer.fmt(amt)}円`, entries: [{ side: 'debit', account: '水道光熱費', amount: amt }], comment: "費用を計上します。" },
+        { highlight: "未払いであり", entries: [{ side: 'credit', account: '未払金', amount: amt }], comment: "まだ払っていないので未払金です。" }
+      ];
+      return q;
+    }
   }
 ];
 
@@ -851,7 +988,7 @@ let userStats = {
 // --- Core Logic ---
 
 function initApp() {
-  console.log("App Initializing V7...");
+  console.log("App Initializing V8...");
   loadStats();
   renderHomeStats();
   renderHomeMenu();
@@ -970,50 +1107,59 @@ function renderHomeMenu() {
 // --- Session Logic ---
 
 function startSession(mode, id = null, title = null) {
-  let queue = [];
+  let selectedQuestions = [];
   let limit = 5;
   let sessionTitle = "";
 
   if (mode === 'comprehensive') {
-    queue = shuffleArray([...QUESTIONS]);
+    selectedQuestions = [...QUESTIONS];
     limit = 10;
     sessionTitle = "総合演習";
   } 
   else if (mode === 'major') {
-    // Filter by Major Category
-    const pool = QUESTIONS.filter(q => q.major === id);
-    queue = shuffleArray(pool);
+    selectedQuestions = QUESTIONS.filter(q => q.major === id);
     limit = 5;
     sessionTitle = title + " (まとめ)";
   } 
   else if (mode === 'sub') {
-    // Filter by Sub Category
     const pool = QUESTIONS.filter(q => q.sub === id);
     if (pool.length < 5) {
-      // If shortage, double up questions to allow practice
-      const extra = shuffleArray([...pool]);
-      queue = [...pool, ...extra];
+      selectedQuestions = [...pool, ...pool]; // Double up
     } else {
-      queue = shuffleArray(pool);
+      selectedQuestions = pool;
     }
     limit = 5;
     sessionTitle = title;
   }
 
-  // Safety slice
-  queue = queue.slice(0, limit);
-
-  if (queue.length === 0) {
+  if (selectedQuestions.length === 0) {
     alert("問題が見つかりませんでした。");
     return;
   }
 
+  // Shuffle and Slice first
+  selectedQuestions = shuffleArray(selectedQuestions).slice(0, limit);
+
+  // DEEP COPY & APPLY MUTATION (Randomization)
+  // We do this here so each session has unique numbers for the same question ID
+  state.currentSessionQueue = selectedQuestions.map(q => {
+    // Deep clone the object to avoid modifying the const QUESTIONS
+    const clone = JSON.parse(JSON.stringify(q));
+    
+    // Re-attach mutate function because JSON.stringify strips functions
+    // We look up the original function from QUESTIONS based on ID
+    const original = QUESTIONS.find(o => o.id === q.id);
+    if (original && original.mutate) {
+      return original.mutate(clone);
+    }
+    return clone;
+  });
+
   // Initialize Session State
-  state.currentSessionQueue = queue;
   state.currentIndex = 0;
-  state.sessionStats = { correct: 0, total: queue.length };
+  state.sessionStats = { correct: 0, total: state.currentSessionQueue.length };
   state.currentMode = mode;
-  state.currentGenreId = id; // Store the genre ID to record stats later
+  state.currentGenreId = id; 
 
   // UI Update
   document.getElementById('session-title').textContent = sessionTitle;
@@ -1037,13 +1183,14 @@ function showHomeScreen() {
   window.scrollTo(0, 0);
 }
 
-// --- Question Rendering (Same as before but ensures proper flow) ---
+// --- Question Rendering ---
 
 function loadQuestion() {
   const q = state.currentSessionQueue[state.currentIndex];
   
   document.getElementById('progress-text').textContent = `${state.currentIndex + 1} / ${state.currentSessionQueue.length}`;
-  document.getElementById('question-id').textContent = (state.currentIndex + 1); // Simple index based ID for user friendliness
+  // Use index + 1 as ID for user display to avoid confusion with static IDs
+  document.getElementById('question-id').textContent = (state.currentIndex + 1); 
   document.getElementById('question-text').textContent = q.text;
 
   state.debitLines = [{ id: generateId(), accountName: null, amount: 0 }];
@@ -1282,16 +1429,14 @@ function checkAnswer() {
   const userCredit = state.creditLines.filter(l => l.accountName && l.amount > 0);
 
   // Partial check logic:
-  // We want to detect if the user has left lines blank or incomplete (e.g., account chosen but 0 amount).
   const allLines = [...state.debitLines, ...state.creditLines];
   const hasIncompleteLines = allLines.some(l => (l.accountName && !l.amount) || (!l.accountName && l.amount));
   const isEmpty = userDebit.length === 0 && userCredit.length === 0;
 
   if (isEmpty || hasIncompleteLines) {
     if (!confirm("未入力または不完全な項目があります。\nこのまま解答し（不正解扱いとなります）、正解を確認しますか？")) {
-      return; // Stop processing
+      return; 
     }
-    // Proceed to grading (which will result in Incorrect)
   }
 
   const sorter = (a, b) => (a.n || '').localeCompare(b.n || '');
@@ -1312,7 +1457,7 @@ function checkAnswer() {
   // Track detailed stats
   userStats.history.push({ qId: q.id, res: isCorrect, date: Date.now() });
   
-  saveStats(); // Saves the updated global totals
+  saveStats(); 
   showResult(isCorrect, q);
 }
 
@@ -1335,8 +1480,6 @@ function showResult(isCorrect, q) {
     card.classList.add('border-green-500');
     contentArea.className = "p-5 space-y-5 overflow-y-auto custom-scrollbar flex-grow bg-green-50";
     display.className = "bg-white p-3 rounded border border-green-200 text-sm font-mono shadow-sm";
-    
-    // Button Green
     nextBtn.className = "w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl transition-colors shadow-sm active:scale-[0.98]";
 
   } else {
@@ -1346,8 +1489,6 @@ function showResult(isCorrect, q) {
     card.classList.add('border-red-500');
     contentArea.className = "p-5 space-y-5 overflow-y-auto custom-scrollbar flex-grow bg-red-50";
     display.className = "bg-white p-3 rounded border border-red-200 text-sm font-mono shadow-sm text-red-900";
-    
-    // Button Slate (Neutral for incorrect to encourage retry/move on)
     nextBtn.className = "w-full bg-slate-700 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition-colors shadow-sm active:scale-[0.98]";
   }
 
@@ -1368,7 +1509,6 @@ function showResult(isCorrect, q) {
   display.innerHTML = html;
   expl.textContent = q.explanation;
   
-  // Disable button for 1 second to prevent accidental clicks
   nextBtn.disabled = true;
   nextBtn.classList.add('opacity-50', 'cursor-not-allowed');
   const originalText = "次の問題へ";
@@ -1421,11 +1561,11 @@ function startExplanationMode() {
   document.getElementById('explanation-screen').classList.remove('hidden');
   document.getElementById('expl-q-id').textContent = state.currentIndex + 1;
 
-  // Prepare steps (Fallback if not defined)
+  // Prepare steps
   if (q.explanationSteps && q.explanationSteps.length > 0) {
     explanationState.steps = [...q.explanationSteps];
   } else {
-    // Generate a simple step fallback: Debit then Credit
+    // Generate a simple step fallback
     const debitEntries = q.correctEntries.debit.map(e => ({ side: 'debit', account: e.accountName, amount: e.amount }));
     const creditEntries = q.correctEntries.credit.map(e => ({ side: 'credit', account: e.accountName, amount: e.amount }));
     
@@ -1444,7 +1584,6 @@ function startExplanationMode() {
         comment: "貸方の仕訳を確認します。"
       });
     }
-    // Add summary
     explanationState.steps.push({
         highlight: "",
         entries: [],
@@ -1518,8 +1657,6 @@ function renderExplStep(index) {
   } else {
     const step = steps[index];
     if (step.highlight && q.text.includes(step.highlight)) {
-      // Replaces only the first occurrence which is usually sufficient
-      // Added background and transition
       const highlighted = q.text.replace(
         step.highlight, 
         `<span class="bg-yellow-300 rounded px-1 box-decoration-clone transition-all duration-300">${step.highlight}</span>`
@@ -1536,8 +1673,6 @@ function renderExplStep(index) {
   debitContainer.innerHTML = '';
   creditContainer.innerHTML = '';
 
-  // Logic: Replay steps from 0 to current index to build the state
-  // This allows "updates" to previous rows (e.g. adding amount later)
   const currentDebitState = [];
   const currentCreditState = [];
 
@@ -1545,10 +1680,8 @@ function renderExplStep(index) {
     // Check if account already exists in this state (to update amount)
     const existingIdx = stateArray.findIndex(e => e.account === entry.account);
     if (existingIdx >= 0) {
-      // Update existing entry (e.g. from '???' to number)
       stateArray[existingIdx] = { ...stateArray[existingIdx], ...entry };
     } else {
-      // Add new entry
       stateArray.push({ ...entry });
     }
   };
@@ -1568,8 +1701,6 @@ function renderExplStep(index) {
     const el = document.createElement('div');
     el.className = "flex justify-between items-center bg-white border border-slate-200 p-2 rounded shadow-sm animate-fade-in transition-all duration-300";
     
-    // Highlight if this specific entry was just added or updated in the CURRENT step
-    // Logic: If this entry matches one in the current step's 'entries' list
     let isNew = false;
     if (index > -1) {
       const currentStepEntries = steps[index].entries || [];
